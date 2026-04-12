@@ -437,14 +437,14 @@ def get_stylesheet():
         background-color: {colors['bg_card']};
         border: 1px solid {colors['outer_border']};
         border-radius: 4px;
-        padding: 16px;
+        padding: 0px;
     }}
     
     #PaginationCard {{
         background-color: {colors['bg_card']};
         border: 1px solid {colors['outer_border']};
         border-radius: 4px;
-        padding: 4px 12px;
+        padding: 4px;
     }}
     
     #Card QLabel {{

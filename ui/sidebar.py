@@ -72,7 +72,7 @@ class Sidebar(QFrame):
         self.setObjectName("Sidebar")
         self.is_collapsed = True
         self.expanded_width = 160
-        self.collapsed_width = 55
+        self.collapsed_width = 65
         
         self.setFixedWidth(self.collapsed_width)
         

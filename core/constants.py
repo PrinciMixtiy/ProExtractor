@@ -14,8 +14,8 @@ APP_VERSION: Final[str] = "1.0.0"
 ORG_NAME: Final[str] = "Princi"
 
 # UI Dimensions
-MIN_WINDOW_WIDTH: Final[int] = 1100
-MIN_WINDOW_HEIGHT: Final[int] = 700
+MIN_WINDOW_WIDTH: Final[int] = 900
+MIN_WINDOW_HEIGHT: Final[int] = 600
 
 # Content and Cards
 CONTENT_MARGIN: Final[int] = 16

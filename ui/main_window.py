@@ -206,7 +206,7 @@ class MainWindow(QMainWindow):
 
         # --- 2a. Header (Search Style) ---
         self.header = QFrame()
-        self.header.setFixedHeight(64)
+        self.header.setFixedHeight(54)
         self.header.setObjectName("Header")
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(32, 0, 32, 0)
@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
                 border-bottom-left-radius: 4px;
                 border-top-right-radius: 4px;
                 border-bottom-right-radius: 4px;
-                height: 46px;
+                height: 38px;
             }
             #InputWrapper:focus {
                 border: 2px solid %s;
@@ -254,13 +254,13 @@ class MainWindow(QMainWindow):
                 border-bottom-left-radius: 4px;
                 border-top-right-radius: 4px;
                 border-bottom-right-radius: 4px;
-                height: 46px;
+                height: 38px;
             }
         """ % (get_theme_colors()['input_bg'], get_theme_colors()['outer_border'],
                get_theme_colors()['accent'], get_theme_colors()['bg_card']))
 
         input_wrapper_layout = QHBoxLayout(input_wrapper)
-        input_wrapper_layout.setContentsMargins(8, 4, 8, 4)
+        input_wrapper_layout.setContentsMargins(4, 0, 4, 0)
         input_wrapper_layout.setSpacing(12)
 
         # Link icon inside input (no background)
@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
                     border-bottom-right-radius: 4px;
-                    height: 46px;
+                    height: 38px;
                 }}
             """)
 
@@ -386,7 +386,7 @@ class MainWindow(QMainWindow):
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
                     border-bottom-right-radius: 4px;
-                    height: 46px;
+                    height: 38px;
                 }}
             """)
 

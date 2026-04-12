@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog,
     QGroupBox, QFormLayout, QStackedWidget, QButtonGroup,
-    QRadioButton, QMessageBox
+    QRadioButton, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -41,7 +41,7 @@ class SettingsPage(QWidget):
         """Setup the settings page UI."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(CONTENT_MARGIN, CONTENT_MARGIN, CONTENT_MARGIN, CONTENT_MARGIN)
-        layout.setSpacing(CARD_SPACING)
+        layout.setSpacing(8)
         
         # Title
         title = QLabel("Settings")
@@ -170,8 +170,21 @@ class GeneralSettings(QWidget):
     
     def _setup_ui(self):
         """Setup general settings UI."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(CARD_SPACING)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Content widget
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setSpacing(8)
         
         # Download Folder
         folder_group = QGroupBox("Default Download Folder")
@@ -184,7 +197,7 @@ class GeneralSettings(QWidget):
         
         self.browse_btn = QPushButton("Browse")
         self.browse_btn.setFixedHeight(BUTTON_HEIGHT)
-        self.browse_btn.setFixedWidth(65)
+        self.browse_btn.setFixedWidth(80)
         self.browse_btn.clicked.connect(self._browse_folder)
         folder_path_layout.addWidget(self.browse_btn)
         
@@ -204,13 +217,25 @@ class GeneralSettings(QWidget):
         tags_label.setObjectName("tagsLabel")
         pattern_layout.addWidget(tags_label)
         
-        tags_layout = QVBoxLayout()
+        # Create scroll area for tags
+        tags_scroll = QScrollArea()
+        tags_scroll.setWidgetResizable(True)
+        tags_scroll.setFrameShape(QScrollArea.NoFrame)
+        tags_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tags_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tags_scroll.setFixedHeight(80)
+        
+        tags_widget = QWidget()
+        tags_layout = QVBoxLayout(tags_widget)
+        tags_layout.setContentsMargins(4, 4, 4, 4)
+        tags_layout.setSpacing(4)
         for tag, description in FILENAME_TAGS.items():
             tag_label = QLabel(f"{{{tag}}} - {description}")
             tag_label.setObjectName("tagLabel")
             tags_layout.addWidget(tag_label)
         
-        pattern_layout.addLayout(tags_layout)
+        tags_scroll.setWidget(tags_widget)
+        pattern_layout.addWidget(tags_scroll)
         layout.addWidget(pattern_group)
         
         # Theme
@@ -242,6 +267,7 @@ class GeneralSettings(QWidget):
         # Language
         language_group = QGroupBox("Language")
         language_layout = QFormLayout(language_group)
+        language_layout.setVerticalSpacing(8)
         
         self.language_combo = QComboBox()
         self.language_combo.addItems(["English", "Spanish", "French", "German", "Chinese"])
@@ -251,6 +277,9 @@ class GeneralSettings(QWidget):
         layout.addWidget(language_group)
         
         layout.addStretch()
+        
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
     
     def _browse_folder(self):
         """Browse for download folder."""
@@ -303,12 +332,26 @@ class DownloadsSettings(QWidget):
     
     def _setup_ui(self):
         """Setup downloads settings UI."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(CARD_SPACING)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Content widget
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setSpacing(8)
         
         # Concurrent Downloads
         concurrent_group = QGroupBox("Download Limits")
         concurrent_layout = QFormLayout(concurrent_group)
+        concurrent_layout.setVerticalSpacing(8)
         
         self.max_concurrent = QSpinBox()
         self.max_concurrent.setRange(MIN_CONCURRENT_LIMIT, MAX_CONCURRENT_LIMIT)
@@ -355,6 +398,7 @@ class DownloadsSettings(QWidget):
         # Quality and Format
         quality_group = QGroupBox("Default Quality and Format")
         quality_layout = QFormLayout(quality_group)
+        quality_layout.setVerticalSpacing(8)
         
         self.default_quality = QComboBox()
         quality_options = ["Highest", "1080p", "720p", "480p", "360p", "Lowest"]
@@ -364,7 +408,7 @@ class DownloadsSettings(QWidget):
         quality_layout.addRow("Default Quality:", self.default_quality)
         
         self.default_format = QComboBox()
-        format_options = ["MP4", "WebM", "MKV", "Audio Only (MP3)", "Audio Only (M4A)"]
+        format_options = ["MP4 (Video)", "MP3 (Audio)"]
         self.default_format.addItems(format_options)
         self.default_format.setCurrentIndex(0)
         self.default_format.setFixedHeight(INPUT_HEIGHT)
@@ -375,6 +419,7 @@ class DownloadsSettings(QWidget):
         # Performance
         performance_group = QGroupBox("Performance")
         performance_layout = QFormLayout(performance_group)
+        performance_layout.setVerticalSpacing(8)
         
         self.timeout = QSpinBox()
         self.timeout.setRange(10, 300)
@@ -386,6 +431,9 @@ class DownloadsSettings(QWidget):
         layout.addWidget(performance_group)
         
         layout.addStretch()
+        
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
     
     def load_settings(self):
         """Load download settings."""
@@ -405,7 +453,7 @@ class DownloadsSettings(QWidget):
         self.default_quality.setCurrentIndex(quality_map.get(quality, 0))
         
         format_val = config.get('downloads.default_format', 'mp4')
-        format_map = {'mp4': 0, 'webm': 1, 'mkv': 2, 'mp3': 3, 'm4a': 4}
+        format_map = {'mp4': 0, 'mp3': 1}
         self.default_format.setCurrentIndex(format_map.get(format_val, 0))
         
         self.timeout.setValue(config.get('downloads.timeout', 30))
@@ -427,7 +475,7 @@ class DownloadsSettings(QWidget):
         quality = quality_map.get(self.default_quality.currentIndex(), 'highest')
         config.set('downloads.default_quality', quality)
         
-        format_map = {0: 'mp4', 1: 'webm', 2: 'mkv', 3: 'mp3', 4: 'm4a'}
+        format_map = {0: 'mp4', 1: 'mp3'}
         format_val = format_map.get(self.default_format.currentIndex(), 'mp4')
         config.set('downloads.default_format', format_val)
         
@@ -445,12 +493,26 @@ class AdvancedSettings(QWidget):
     
     def _setup_ui(self):
         """Setup advanced settings UI."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(CARD_SPACING)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Content widget
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setSpacing(8)
         
         # FFmpeg Path
         ffmpeg_group = QGroupBox("FFmpeg Configuration")
         ffmpeg_layout = QFormLayout(ffmpeg_group)
+        ffmpeg_layout.setVerticalSpacing(8)
         
         ffmpeg_path_layout = QHBoxLayout()
         self.ffmpeg_path = QLineEdit()
@@ -460,7 +522,7 @@ class AdvancedSettings(QWidget):
         
         self.ffmpeg_browse = QPushButton("Browse")
         self.ffmpeg_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.ffmpeg_browse.setFixedWidth(65)
+        self.ffmpeg_browse.setFixedWidth(80)
         self.ffmpeg_browse.clicked.connect(self._browse_ffmpeg)
         ffmpeg_path_layout.addWidget(self.ffmpeg_browse)
         
@@ -470,6 +532,7 @@ class AdvancedSettings(QWidget):
         # Storage
         storage_group = QGroupBox("Storage Paths")
         storage_layout = QFormLayout(storage_group)
+        storage_layout.setVerticalSpacing(8)
         
         # Data Directory
         data_dir_layout = QHBoxLayout()
@@ -480,7 +543,7 @@ class AdvancedSettings(QWidget):
         
         self.data_dir_browse = QPushButton("Browse")
         self.data_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.data_dir_browse.setFixedWidth(65)
+        self.data_dir_browse.setFixedWidth(80)
         self.data_dir_browse.clicked.connect(self._browse_data_dir)
         data_dir_layout.addWidget(self.data_dir_browse)
         
@@ -495,7 +558,7 @@ class AdvancedSettings(QWidget):
         
         self.log_dir_browse = QPushButton("Browse")
         self.log_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.log_dir_browse.setFixedWidth(65)
+        self.log_dir_browse.setFixedWidth(80)
         self.log_dir_browse.clicked.connect(self._browse_log_dir)
         log_dir_layout.addWidget(self.log_dir_browse)
         
@@ -504,6 +567,9 @@ class AdvancedSettings(QWidget):
         layout.addWidget(storage_group)
         
         layout.addStretch()
+        
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
     
     def _browse_ffmpeg(self):
         """Browse for FFmpeg executable."""
@@ -576,8 +642,21 @@ class AuthenticationSettings(QWidget):
     
     def _setup_ui(self):
         """Setup authentication settings UI."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(CARD_SPACING)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Content widget
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setSpacing(8)
         
         # Browser Source Section
         browser_group = QGroupBox("Browser Cookie Source")
@@ -628,7 +707,7 @@ class AuthenticationSettings(QWidget):
         
         scroll_widget = QScrollWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setSpacing(8)
+        scroll_layout.setSpacing(6)
         
         # Create checkbox for each default domain
         for domain, display_name in self.DEFAULT_DOMAINS.items():
@@ -640,7 +719,7 @@ class AuthenticationSettings(QWidget):
         
         # Custom domains container
         self.custom_domains_layout = QVBoxLayout()
-        self.custom_domains_layout.setSpacing(8)
+        self.custom_domains_layout.setSpacing(6)
         scroll_layout.addLayout(self.custom_domains_layout)
         
         scroll_layout.addStretch()
@@ -663,6 +742,9 @@ class AuthenticationSettings(QWidget):
         layout.addWidget(domains_group)
         
         layout.addStretch()
+        
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
     
     def _on_browser_changed(self, index):
         """Handle browser selection change."""
