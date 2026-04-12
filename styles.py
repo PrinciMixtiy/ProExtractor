@@ -437,7 +437,7 @@ def get_stylesheet():
         background-color: {colors['bg_card']};
         border: 1px solid {colors['outer_border']};
         border-radius: 4px;
-        padding: 24px;
+        padding: 16px;
     }}
     
     #PaginationCard {{

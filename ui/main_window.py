@@ -437,12 +437,12 @@ class MainWindow(QMainWindow):
 
     def _setup_home_page(self):
         self.home_layout = QVBoxLayout(self.home_content)
-        self.home_layout.setContentsMargins(32, 24, 32, 32)
-        self.home_layout.setSpacing(32)
+        self.home_layout.setContentsMargins(24, 16, 24, 16)
+        self.home_layout.setSpacing(20)
 
         # --- TOP SECTION: Extraction Dashboard ---
         top_section = QHBoxLayout()
-        top_section.setSpacing(24)
+        top_section.setSpacing(16)
 
         # Left: Preview
         preview_container = QVBoxLayout()
@@ -512,7 +512,7 @@ class MainWindow(QMainWindow):
 
         # --- BOTTOM SECTION: History Archive ---
         history_section = QVBoxLayout()
-        history_section.setSpacing(16)
+        history_section.setSpacing(12)
 
         # History Header: Title + Filters + Clear
         history_header = QHBoxLayout()
@@ -564,7 +564,7 @@ class MainWindow(QMainWindow):
         history_list_widget = QWidget()
         self.task_list_layout = QVBoxLayout(history_list_widget)
         self.task_list_layout.setAlignment(Qt.AlignTop)  # Keep top alignment
-        self.task_list_layout.setSpacing(12)
+        self.task_list_layout.setSpacing(8)
         self.task_list_layout.setContentsMargins(0, 0, 0, 0)
 
         # Add column header for better alignment
@@ -611,7 +611,7 @@ class MainWindow(QMainWindow):
         self.task_list_widget = QWidget()
         self.task_list_layout = QVBoxLayout(self.task_list_widget)
         self.task_list_layout.setAlignment(Qt.AlignTop)
-        self.task_list_layout.setSpacing(12)
+        self.task_list_layout.setSpacing(8)
         self.task_list_layout.setContentsMargins(0, 0, 0, 0)
         history_section.addWidget(self.task_list_widget, 1)
 

@@ -18,8 +18,8 @@ MIN_WINDOW_WIDTH: Final[int] = 1100
 MIN_WINDOW_HEIGHT: Final[int] = 700
 
 # Content and Cards
-CONTENT_MARGIN: Final[int] = 24
-CARD_SPACING: Final[int] = 12
+CONTENT_MARGIN: Final[int] = 16
+CARD_SPACING: Final[int] = 8
 BUTTON_HEIGHT: Final[int] = 28
 INPUT_HEIGHT: Final[int] = 38
 

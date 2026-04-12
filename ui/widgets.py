@@ -354,7 +354,7 @@ class FileInfoCard(QFrame):
         super().__init__()
         self.setObjectName("InfoCard")
         self.layout = QVBoxLayout(self)
-        self.layout.setSpacing(16)
+        self.layout.setSpacing(12)
         self.layout.setContentsMargins(20, 20, 20, 20)
         
         header = QLabel("FILE INFORMATION")
@@ -363,7 +363,7 @@ class FileInfoCard(QFrame):
         
         # Grid for info
         grid = QVBoxLayout()
-        grid.setSpacing(12)
+        grid.setSpacing(8)
         
         self.size_row = self._create_row("Estimated Size", "0.00 MB", is_accent=True)
         self.format_row = self._create_row("Format", "MP4 / H.264")
@@ -413,11 +413,11 @@ class StreamOptionsCard(QFrame):
         self.setObjectName("Card")
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(16, 16, 16, 16)
-        self.main_layout.setSpacing(24)
+        self.main_layout.setSpacing(16)
         
         # --- TOP ROW: Format & Resolution ---
         top_row = QHBoxLayout()
-        top_row.setSpacing(16)
+        top_row.setSpacing(12)
         
         # Format Selector
         format_col = QVBoxLayout()
@@ -450,7 +450,7 @@ class StreamOptionsCard(QFrame):
         
         # --- TOGGLE ROWS ---
         toggle_row = QHBoxLayout()
-        toggle_row.setSpacing(12)
+        toggle_row.setSpacing(8)
         
         self.thumb_toggle = ModernActionRow("Extract Thumbnails", "thumbnail.png")
         self.thumb_toggle.toggle.setChecked(config.get('downloads.embed_thumbnails', True))
@@ -473,7 +473,7 @@ class StreamOptionsCard(QFrame):
         dest_col.addWidget(dest_header)
         
         dest_row = QHBoxLayout()
-        dest_row.setSpacing(12)
+        dest_row.setSpacing(8)
         
         self.path_display = QLineEdit()
         self.path_display.setReadOnly(True)
@@ -802,7 +802,7 @@ class TaskItem(QFrame):
         
         self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(16, 12, 16, 12)
-        self.main_layout.setSpacing(20)
+        self.main_layout.setSpacing(12)
         
         # --- 1. Thumbnail (Left) ---
         self.thumb_label = QLabel()
