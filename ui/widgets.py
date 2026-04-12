@@ -1193,9 +1193,14 @@ class VirtualPlaylistWidget(QFrame):
     
     def _on_item_selection_changed(self, index: int, is_selected: bool):
         """Update model when individual item selection changes."""
-        # Convert 1-based display index to 0-based array index
-        array_index = index - 1
-        if 0 <= array_index < len(self.model.items):
+        # Find the item with matching 'index' field (1-based display index from downloader)
+        array_index = None
+        for i, item in enumerate(self.model.items):
+            if item.get('index') == index:
+                array_index = i
+                break
+        
+        if array_index is not None:
             self.model.items[array_index]['selected'] = is_selected
         self.selection_changed.emit()
         
@@ -1206,6 +1211,8 @@ class VirtualPlaylistWidget(QFrame):
             if item.widget():
                 item.widget().deleteLater()
         self.widgets.clear()
+        # Re-add stretch to maintain proper layout
+        self.container_layout.addStretch()
         
     def scroll_to_item(self, index):
         """Scroll to show specific item."""
@@ -1316,7 +1323,7 @@ class PlaylistItemWidget(QFrame):
 
     def _on_checkbox_changed(self, state):
         """Emit signal when checkbox state changes (user interaction only)."""
-        self.selection_changed.emit(self.index, state == Qt.Checked)
+        self.selection_changed.emit(self.index, bool(state))
 
     def get_data(self) -> dict:
         return {'url': self.url, 'title': self.title, 'thumb_url': self.thumb_url}
