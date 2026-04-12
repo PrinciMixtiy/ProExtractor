@@ -82,7 +82,7 @@ def get_stylesheet():
     
     #AppTitle {{
         font-weight: 800;
-        font-size: 20px;
+        font-size: 16px;
         color: {colors['accent']};
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -95,7 +95,7 @@ def get_stylesheet():
         padding: 10px 16px;
         border-radius: 4px;
         color: {colors['text_primary']};
-        font-size: 14px;
+        font-size: 11px;
     }}
     
     QLineEdit:focus {{
@@ -108,7 +108,7 @@ def get_stylesheet():
         padding: 14px 24px;
         border-radius: 4px;   /* Pill shape */
         color: {colors['text_primary']};
-        font-size: 15px;
+        font-size: 12px;
         selection-background-color: {colors['accent']};
         font-weight: 500;
     }}
@@ -126,7 +126,7 @@ def get_stylesheet():
         padding: 10px 20px;
         font-weight: 700;
         border-radius: 4px;
-        font-size: 12px;
+        font-size: 10px;
     }}
     
     QPushButton:hover {{
@@ -144,7 +144,7 @@ def get_stylesheet():
         padding: 12px 32px 12px 32px;
         font-weight: 800;
         text-transform: uppercase;
-        font-size: 13px;
+        font-size: 12px;
         letter-spacing: 1px;
         border: none;
     }}
@@ -162,7 +162,7 @@ def get_stylesheet():
         border: 1px solid {colors['outer_border']};
         color: {colors['text_primary']};
         padding: 6px 12px;
-        font-size: 11px;
+        font-size: 9px;
     }}
     
     QPushButton#SecondaryButton:hover {{
@@ -196,7 +196,7 @@ def get_stylesheet():
         text-align: center;
         background-color: {colors['bg_main']};
         height: 8px;
-        font-size: 10px;
+        font-size: 8px;
         font-weight: bold;
         color: {colors['text_primary']};
     }}
@@ -255,7 +255,7 @@ def get_stylesheet():
         border-radius: 4px;
         padding: 6px 12px;
         color: {colors['text_primary']};
-        font-size: 13px;
+        font-size: 11px;
         min-height: 20px;
     }}
     
@@ -338,7 +338,7 @@ def get_stylesheet():
         border-radius: 4px;
         padding: 6px 12px;
         color: {colors['text_primary']};
-        font-size: 13px;
+        font-size: 11px;
         min-height: 20px;
     }}
     
@@ -440,6 +440,13 @@ def get_stylesheet():
         padding: 24px;
     }}
     
+    #PaginationCard {{
+        background-color: {colors['bg_card']};
+        border: 1px solid {colors['outer_border']};
+        border-radius: 4px;
+        padding: 4px 12px;
+    }}
+    
     #Card QLabel {{
         background-color: transparent;
         border: none;
@@ -493,7 +500,7 @@ def get_stylesheet():
     
     #ItemSubtitle {{
         color: {colors['text_secondary']};
-        font-size: 11px;
+        font-size: 9px;
         background-color: transparent;
         border: none;
     }}
@@ -514,7 +521,7 @@ def get_stylesheet():
     
     #HistoryCard QLabel#ItemSubtitle {{
         color: {colors['text_secondary']};
-        font-size: 11px;
+        font-size: 9px;
         background-color: transparent;
         border: none;
     }}
@@ -571,7 +578,7 @@ def get_stylesheet():
     #HistoryCard QLabel[style*="status_badge"] {{
         color: {colors['accent']};
         background-color: transparent;
-        font-size: 10px;
+        font-size: 8px;
         font-weight: 900;
         letter-spacing: 1px;
         border: none;
@@ -608,7 +615,7 @@ def get_stylesheet():
     /* Labels and Headers */
     QLabel#OptionHeader {{
         font-weight: 800;
-        font-size: 11px;
+        font-size: 9px;
         color: {colors['text_secondary']};
         text-transform: uppercase;
         letter-spacing: 1.5px;
@@ -617,14 +624,14 @@ def get_stylesheet():
     
     QLabel#InfoKey {{
         color: {colors['text_secondary']};
-        font-size: 11px;
+        font-size: 9px;
         font-weight: 600;
         text-transform: uppercase;
     }}
 
     QLabel#InfoValue {{
         color: {colors['text_primary']};
-        font-size: 12px;
+        font-size: 10px;
         font-weight: 700;
         font-family: 'JetBrains Mono', 'Consolas', monospace;
     }}
@@ -641,7 +648,7 @@ def get_stylesheet():
         border: 1px solid {colors['outer_border']};
         border-radius: 4px;
         padding: 8px 16px;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 500;
         color: {colors['text_primary']};
     }}
@@ -663,7 +670,7 @@ def get_stylesheet():
     /* Settings specific */
     QLabel#settingsTitle {{
         color: {colors['text_primary']};
-        font-size: 24px;
+        font-size: 19px;
         font-weight: 800;
         margin-bottom: 16px;
     }}
@@ -686,7 +693,7 @@ def get_stylesheet():
         text-align: left;
         padding-left: 12px;
         font-weight: 700;
-        font-size: 13px;
+        font-size: 12px;
         border: none;
         margin: 2px 4px;
     }}

@@ -184,7 +184,7 @@ class GeneralSettings(QWidget):
         
         self.browse_btn = QPushButton("Browse")
         self.browse_btn.setFixedHeight(BUTTON_HEIGHT)
-        self.browse_btn.setFixedWidth(80)
+        self.browse_btn.setFixedWidth(65)
         self.browse_btn.clicked.connect(self._browse_folder)
         folder_path_layout.addWidget(self.browse_btn)
         
@@ -460,7 +460,7 @@ class AdvancedSettings(QWidget):
         
         self.ffmpeg_browse = QPushButton("Browse")
         self.ffmpeg_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.ffmpeg_browse.setFixedWidth(80)
+        self.ffmpeg_browse.setFixedWidth(65)
         self.ffmpeg_browse.clicked.connect(self._browse_ffmpeg)
         ffmpeg_path_layout.addWidget(self.ffmpeg_browse)
         
@@ -480,7 +480,7 @@ class AdvancedSettings(QWidget):
         
         self.data_dir_browse = QPushButton("Browse")
         self.data_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.data_dir_browse.setFixedWidth(80)
+        self.data_dir_browse.setFixedWidth(65)
         self.data_dir_browse.clicked.connect(self._browse_data_dir)
         data_dir_layout.addWidget(self.data_dir_browse)
         
@@ -495,7 +495,7 @@ class AdvancedSettings(QWidget):
         
         self.log_dir_browse = QPushButton("Browse")
         self.log_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.log_dir_browse.setFixedWidth(80)
+        self.log_dir_browse.setFixedWidth(65)
         self.log_dir_browse.clicked.connect(self._browse_log_dir)
         log_dir_layout.addWidget(self.log_dir_browse)
         

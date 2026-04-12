@@ -18,10 +18,10 @@ MIN_WINDOW_WIDTH: Final[int] = 1100
 MIN_WINDOW_HEIGHT: Final[int] = 700
 
 # Content and Cards
-CONTENT_MARGIN: Final[int] = 32
-CARD_SPACING: Final[int] = 16
-BUTTON_HEIGHT: Final[int] = 40
-INPUT_HEIGHT: Final[int] = 36
+CONTENT_MARGIN: Final[int] = 24
+CARD_SPACING: Final[int] = 12
+BUTTON_HEIGHT: Final[int] = 28
+INPUT_HEIGHT: Final[int] = 38
 
 # Colors and Theme
 ACCENT_COLOR: Final[str] = "#14b8a6"
@@ -48,7 +48,7 @@ QUEUE_IDLE_COLOR: Final[str] = "#64748b"     # Gray
 
 # UI Text Styles
 QUEUE_STATUS_STYLE: Final[str] = "font-size: 12px; padding: 4px 8px; font-weight: 500;"
-PAGE_LABEL_STYLE: Final[str] = "font-weight: 500; color: #64748b;"
+PAGE_LABEL_STYLE: Final[str] = "font-size: 12px; font-weight: 500; color: #64748b; background-color: transparent;"
 
 # Network and Performance
 FRAGMENT_RETRIES: Final[int] = 5

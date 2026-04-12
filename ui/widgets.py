@@ -26,7 +26,7 @@ class ModernToggle(QFrame):
 
     def __init__(self, parent=None, active_color="#14b8a6"):
         super().__init__(parent)
-        self.setFixedSize(44, 24)
+        self.setFixedSize(35, 19)
         self._set_colors(active_color)
         self._active = False
         self._circle_pos = 2
@@ -58,7 +58,7 @@ class ModernToggle(QFrame):
             return
         self._active = checked
         self.animation.stop()
-        self.animation.setEndValue(22 if checked else 2)
+        self.animation.setEndValue(18 if checked else 2)
         self.animation.start()
         self.toggled.emit(checked)
 
@@ -78,14 +78,14 @@ class ModernToggle(QFrame):
         
         # Draw circle
         painter.setBrush(QColor(self._circle_color))
-        painter.drawEllipse(self._circle_pos, 2, 20, 20)
+        painter.drawEllipse(self._circle_pos, 2, 15, 15)
         painter.end()
 
 class ModernActionRow(QFrame):
     """A row with icon, title, and a toggle switch."""
     def __init__(self, title, icon_name, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(56)
+        self.setFixedHeight(45)
         self.setObjectName("ActionRow")
         
         layout = QHBoxLayout(self)
@@ -94,14 +94,14 @@ class ModernActionRow(QFrame):
         
         # Icon
         self.icon_label = QLabel()
-        self.icon_label.setFixedSize(32, 32)
+        self.icon_label.setFixedSize(26, 26)
         self.icon_label.setAlignment(Qt.AlignCenter)
         self.icon_name = icon_name
         layout.addWidget(self.icon_label)
         
         # Title
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: 600; background: transparent;")
+        self.title_label.setStyleSheet("font-size: 11px; font-weight: 600; background: transparent;")
         layout.addWidget(self.title_label, 1)
         
         # Toggle
@@ -118,8 +118,8 @@ class ModernActionRow(QFrame):
                 border-radius: 8px;
             }}
         """)
-        self.title_label.setStyleSheet(f"font-size: 14px; font-weight: 600; background: transparent; color: {colors['text_primary']};")
-        self.icon_label.setPixmap(get_icon(self.icon_name, colors['accent']).pixmap(20, 20))
+        self.title_label.setStyleSheet(f"font-size: 11px; font-weight: 600; background: transparent; color: {colors['text_primary']};")
+        self.icon_label.setPixmap(get_icon(self.icon_name, colors['accent']).pixmap(16, 16))
         self.toggle._set_colors(colors['accent'])
         self.toggle.update()
 
@@ -133,13 +133,13 @@ class PaginationWidget(QFrame):
         self.current_page = 0
         self.total_items = 0
         self.total_pages = 0
-        self.setObjectName("Card")
+        self.setObjectName("PaginationCard")
         
         self._setup_ui()
         
     def _setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 8, 16, 8)
+        layout.setContentsMargins(8, 2, 8, 2)
         
         # Previous button
         self.prev_btn = QPushButton("← Previous")
@@ -289,23 +289,23 @@ class VideoInfoCard(QFrame):
         self.layout.addWidget(self.thumbnail, 1) # Priority to thumbnail
         
         self.info_container = QVBoxLayout()
-        self.info_container.setContentsMargins(16, 12, 16, 12)
+        self.info_container.setContentsMargins(16, 16, 16, 16)
         self.info_container.setSpacing(6)
         
         self.title = QLabel("Video Title")
         self.title.setObjectName("ItemTitle")
         self.title.setWordWrap(True)
-        self.title.setStyleSheet("font-size: 18px; font-weight: 700;")  # Increased from default
+        self.title.setStyleSheet("font-size: 14px; font-weight: 700;")  # Scaled down
         self.info_container.addWidget(self.title)
         
         self.author = QLabel("Author Name")
         self.author.setObjectName("ItemSubtitle")
-        self.author.setStyleSheet("font-size: 14px; font-weight: 500;")  # Increased from default
+        self.author.setStyleSheet("font-size: 11px; font-weight: 500;")  # Scaled down
         self.info_container.addWidget(self.author)
         
         self.stats = QLabel("0 Views • 0:00")
         self.stats.setObjectName("ItemSubtitle")
-        self.stats.setStyleSheet("font-size: 13px; font-weight: 500;")  # Increased from default
+        self.stats.setStyleSheet("font-size: 10px; font-weight: 500;")  # Scaled down
         self.info_container.addWidget(self.stats)
         
         self.layout.addLayout(self.info_container)
@@ -329,9 +329,9 @@ class VideoInfoCard(QFrame):
     def update_theme(self):
         colors = get_theme_colors()
         self.thumbnail.update_theme()
-        self.title.setStyleSheet(f"color: {colors['text_primary']}; font-size: 18px; font-weight: 700;")
-        self.author.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 14px; font-weight: 500;")
-        self.stats.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 13px; font-weight: 500;")
+        self.title.setStyleSheet(f"color: {colors['text_primary']}; font-size: 14px; font-weight: 700;")
+        self.author.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 11px; font-weight: 500;")
+        self.stats.setStyleSheet(f"color: {colors['text_secondary']}; font-size: 10px; font-weight: 500;")
 
     def reset(self):
         """Reset preview UI when starting a new download batch."""
@@ -412,7 +412,7 @@ class StreamOptionsCard(QFrame):
         super().__init__()
         self.setObjectName("Card")
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(24, 24, 24, 24)
+        self.main_layout.setContentsMargins(16, 16, 16, 16)
         self.main_layout.setSpacing(24)
         
         # --- TOP ROW: Format & Resolution ---
@@ -425,7 +425,7 @@ class StreamOptionsCard(QFrame):
         f_header.setObjectName("OptionHeader")
         format_col.addWidget(f_header)
         self.format_combo = QComboBox()
-        self.format_combo.setFixedHeight(54)
+        self.format_combo.setFixedHeight(43)
         self.format_combo.setObjectName("ModernInput")
         format_col.addWidget(self.format_combo)
         top_row.addLayout(format_col, 1)
@@ -436,7 +436,7 @@ class StreamOptionsCard(QFrame):
         r_header.setObjectName("OptionHeader")
         res_col.addWidget(r_header)
         self.quality_combo = QComboBox()
-        self.quality_combo.setFixedHeight(54)
+        self.quality_combo.setFixedHeight(43)
         self.quality_combo.setObjectName("ModernInput")
         self.quality_combo.currentIndexChanged.connect(self._on_selection_changed)
         res_col.addWidget(self.quality_combo)
@@ -477,12 +477,12 @@ class StreamOptionsCard(QFrame):
         
         self.path_display = QLineEdit()
         self.path_display.setReadOnly(True)
-        self.path_display.setFixedHeight(54)
+        self.path_display.setFixedHeight(43)
         self.path_display.setObjectName("ModernInput")
         dest_row.addWidget(self.path_display, 1)
         
         self.folder_btn = QPushButton()
-        self.folder_btn.setFixedSize(54, 54)
+        self.folder_btn.setFixedSize(43, 43)
         self.folder_btn.setObjectName("SecondaryButton")
         self.folder_btn.setIcon(get_icon("folder.png", get_theme_colors()['text_primary']))
         dest_row.addWidget(self.folder_btn)
@@ -496,10 +496,10 @@ class StreamOptionsCard(QFrame):
         # --- START BUTTON ---
         self.download_btn = QPushButton("  START DOWNLOAD")
         self.download_btn.setObjectName("PrimaryButton")
-        self.download_btn.setFixedHeight(54)
-        self.download_btn.setFont(QFont("Inter", 13, QFont.Bold))
+        self.download_btn.setFixedHeight(43)
+        self.download_btn.setFont(QFont("Inter", 9, QFont.Bold))
         self.download_btn.setIcon(get_icon("download.png", "#ffffff"))
-        self.download_btn.setIconSize(QSize(22, 22))
+        self.download_btn.setIconSize(QSize(18, 18))
         self.download_btn.setStyleSheet("padding-left: 15px; padding-right: 15px;")
         self.download_btn.clicked.connect(self._on_download)
         self.main_layout.addWidget(self.download_btn)
@@ -797,7 +797,7 @@ class TaskItem(QFrame):
         self.current_status = "pending"
         self.current_msg = "DOWNLOADING"
         self.setObjectName("HistoryCard")
-        self.setFixedHeight(100)
+        self.setFixedHeight(80)
         # Remove hard-coded color - will use stylesheet
         
         self.main_layout = QHBoxLayout(self)
@@ -806,7 +806,7 @@ class TaskItem(QFrame):
         
         # --- 1. Thumbnail (Left) ---
         self.thumb_label = QLabel()
-        self.thumb_label.setFixedSize(120, 68)
+        self.thumb_label.setFixedSize(96, 54)
         colors = get_theme_colors()
         self.thumb_label.setStyleSheet(f"background-color: {colors['bg_dark']}; border-radius: 4px;")  # Theme-aware dark background for thumbnail contrast
         self.thumb_label.setScaledContents(True)
@@ -835,18 +835,18 @@ class TaskItem(QFrame):
         self.title_label = QLabel(title)
         self.title_label.setObjectName("ItemTitle")
         # Remove hard-coded color - will use stylesheet
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: 700;")
-        self.title_label.setFixedWidth(250)
+        self.title_label.setStyleSheet("font-size: 11px; font-weight: 700;")
+        self.title_label.setFixedWidth(200)
         # Elide title
         metrics = self.title_label.fontMetrics()
-        elided = metrics.elidedText(title, Qt.ElideRight, 250)
+        elided = metrics.elidedText(title, Qt.ElideRight, 200)
         self.title_label.setText(elided)
         meta_layout.addWidget(self.title_label)
         
         self.source_label = QLabel(source if source else "Source unknown")
         self.source_label.setObjectName("ItemSubtitle")
         # Remove hard-coded color - will use stylesheet
-        self.source_label.setStyleSheet("font-size: 11px;")
+        self.source_label.setStyleSheet("font-size: 9px;")
         meta_layout.addWidget(self.source_label)
         
         self.main_layout.addLayout(meta_layout, 4)
@@ -858,12 +858,12 @@ class TaskItem(QFrame):
         
         self.size_label = QLabel("0.0 MB / 0.0 MB")
         # Remove hard-coded color - will use stylesheet
-        self.size_label.setStyleSheet("font-size: 12px; font-weight: 700;")
+        self.size_label.setStyleSheet("font-size: 10px; font-weight: 700;")
         metric_layout.addWidget(self.size_label)
         
         self.speed_label = QLabel("Waiting...")
         # Remove hard-coded color - will use stylesheet
-        self.speed_label.setStyleSheet("font-size: 11px; font-weight: 800;")
+        self.speed_label.setStyleSheet("font-size: 9px; font-weight: 800;")
         metric_layout.addWidget(self.speed_label)
         
         self.main_layout.addLayout(metric_layout, 2)
@@ -874,7 +874,7 @@ class TaskItem(QFrame):
         status_layout.setAlignment(Qt.AlignCenter)
         
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setFixedHeight(5)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setStyleSheet("QProgressBar::chunk { border-radius: 4px; }")
         status_layout.addWidget(self.progress_bar)
@@ -882,7 +882,7 @@ class TaskItem(QFrame):
         self.status_badge = QLabel("PENDING")
         self.status_badge.setAlignment(Qt.AlignCenter)
         # Remove hard-coded color - will use stylesheet
-        self.status_badge.setStyleSheet("font-size: 10px; font-weight: 900; letter-spacing: 1px;")
+        self.status_badge.setStyleSheet("font-size: 8px; font-weight: 900; letter-spacing: 1px;")
         status_layout.addWidget(self.status_badge)
         
         self.main_layout.addLayout(status_layout, 2)
@@ -914,18 +914,18 @@ class TaskItem(QFrame):
         self._icon_color = icon_color
         self._button_text_color = colors['button_text']
         
-        self.pause_btn.setIconSize(QSize(18, 18))
-        self.resume_btn.setIconSize(QSize(18, 18))
-        self.open_btn.setIconSize(QSize(16, 16))
-        self.delete_btn.setIconSize(QSize(18, 18))
+        self.pause_btn.setIconSize(QSize(14, 14))
+        self.resume_btn.setIconSize(QSize(14, 14))
+        self.open_btn.setIconSize(QSize(13, 13))
+        self.delete_btn.setIconSize(QSize(14, 14))
         
-        self.pause_btn.setFixedSize(36, 36)
-        self.resume_btn.setFixedSize(36, 36)
-        self.delete_btn.setFixedSize(36, 36)
+        self.pause_btn.setFixedSize(29, 29)
+        self.resume_btn.setFixedSize(29, 29)
+        self.delete_btn.setFixedSize(29, 29)
         
-        self.open_btn.setFixedHeight(36)
+        self.open_btn.setFixedHeight(29)
         # Remove hard-coded style - will use stylesheet
-        self.open_btn.setStyleSheet("QPushButton { border-radius: 4px; font-size: 13px; font-weight: 800; padding: 0 16px; }")
+        self.open_btn.setStyleSheet("QPushButton { border-radius: 4px; font-size: 10px; font-weight: 800; padding: 0 13px; }")
         
         for btn in [self.pause_btn, self.resume_btn, self.delete_btn]:
             # Remove hard-coded style - will use stylesheet

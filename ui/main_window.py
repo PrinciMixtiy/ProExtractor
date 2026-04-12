@@ -206,7 +206,7 @@ class MainWindow(QMainWindow):
 
         # --- 2a. Header (Search Style) ---
         self.header = QFrame()
-        self.header.setFixedHeight(80)
+        self.header.setFixedHeight(64)
         self.header.setObjectName("Header")
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(32, 0, 32, 0)
@@ -231,8 +231,8 @@ class MainWindow(QMainWindow):
         search_layout = QHBoxLayout(search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(0)
-        search_container.setMinimumWidth(500)
-        search_container.setMaximumWidth(700)
+        search_container.setMinimumWidth(400)
+        search_container.setMaximumWidth(560)
 
         # Main input container that simulates an input field with icons
         input_wrapper = QWidget()
@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
                 border-bottom-left-radius: 4px;
                 border-top-right-radius: 4px;
                 border-bottom-right-radius: 4px;
-                height: 58px;
+                height: 46px;
             }
             #InputWrapper:focus {
                 border: 2px solid %s;
@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
                 border-bottom-left-radius: 4px;
                 border-top-right-radius: 4px;
                 border-bottom-right-radius: 4px;
-                height: 58px;
+                height: 46px;
             }
         """ % (get_theme_colors()['input_bg'], get_theme_colors()['outer_border'],
                get_theme_colors()['accent'], get_theme_colors()['bg_card']))
@@ -276,14 +276,14 @@ class MainWindow(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setObjectName("InnerSearchInput")
         self.url_input.setPlaceholderText("Paste video URL here...")
-        self.url_input.setFixedHeight(48)
+        self.url_input.setFixedHeight(38)
         self.url_input.setStyleSheet("""
             QLineEdit#InnerSearchInput {
                 background-color: transparent;
                 border: none;
                 padding: 0;
                 color: %s;
-                font-size: 15px;
+                font-size: 12px;
                 font-weight: 500;
             }
             QLineEdit#InnerSearchInput:focus {
@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
         # Keep red for clear action
         self.clear_btn.setIcon(get_icon("close.png", "#f43f5e"))
         self.clear_btn.setIconSize(QSize(18, 18))
-        self.clear_btn.setFixedSize(32, 32)
+        self.clear_btn.setFixedSize(26, 26)
         self.clear_btn.setCursor(Qt.PointingHandCursor)
         self.clear_btn.setStyleSheet(f"""
             QPushButton {{ 
@@ -318,7 +318,7 @@ class MainWindow(QMainWindow):
         # Analyze button inside input wrapper
         self.analyze_btn = QPushButton("ANALYZE")
         self.analyze_btn.setObjectName("AnalyzeButton")
-        self.analyze_btn.setFixedSize(100, 36)
+        self.analyze_btn.setFixedSize(80, 29)
         self.analyze_btn.setCursor(Qt.PointingHandCursor)
         colors = get_theme_colors()
         self.analyze_btn.setStyleSheet(f"""
@@ -326,9 +326,9 @@ class MainWindow(QMainWindow):
                 background-color: {colors['accent']};
                 color: {colors['button_text']};
                 border-radius: 4px;
-                padding: 8px 16px;
+                padding: 4px 8px;
                 font-weight: 700;
-                font-size: 12px;
+                font-size: 10px;
                 border: none;
                 margin-left: 8px;
             }}
@@ -372,7 +372,7 @@ class MainWindow(QMainWindow):
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
                     border-bottom-right-radius: 4px;
-                    height: 58px;
+                    height: 46px;
                 }}
             """)
 
@@ -386,7 +386,7 @@ class MainWindow(QMainWindow):
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
                     border-bottom-right-radius: 4px;
-                    height: 58px;
+                    height: 46px;
                 }}
             """)
 
@@ -521,7 +521,7 @@ class MainWindow(QMainWindow):
         hist_title = QLabel("DOWNLOAD HISTORY")
         colors = get_theme_colors()
         hist_title.setStyleSheet(
-            "font-weight: 900; font-size: 22px; color: {};".format(colors['text_primary']))
+            "font-weight: 900; font-size: 17px; color: {};".format(colors['text_primary']))
 
         # Store as instance variables for theme updates
         self.hist_title = hist_title
@@ -535,8 +535,8 @@ class MainWindow(QMainWindow):
         self.retry_all_btn = QPushButton(" RETRY FAILED")
         colors = get_theme_colors()
         self.retry_all_btn.setIcon(get_icon("retry.png", colors['accent']))
-        self.retry_all_btn.setIconSize(QSize(16, 16))
-        self.retry_all_btn.setFixedHeight(36)
+        self.retry_all_btn.setIconSize(QSize(13, 13))
+        self.retry_all_btn.setFixedHeight(29)
         self.retry_all_btn.clicked.connect(self._retry_all_failed)
         history_header.addWidget(self.retry_all_btn)
 
@@ -544,8 +544,8 @@ class MainWindow(QMainWindow):
         self.resume_unfinished_btn = QPushButton(" RESUME UNFINISHED")
         self.resume_unfinished_btn.setIcon(
             get_icon("play.png", colors['accent']))
-        self.resume_unfinished_btn.setIconSize(QSize(16, 16))
-        self.resume_unfinished_btn.setFixedHeight(36)
+        self.resume_unfinished_btn.setIconSize(QSize(13, 13))
+        self.resume_unfinished_btn.setFixedHeight(29)
         self.resume_unfinished_btn.clicked.connect(self._resume_all_unfinished)
         history_header.addWidget(self.resume_unfinished_btn)
 
@@ -553,8 +553,8 @@ class MainWindow(QMainWindow):
         self.clear_history_btn = QPushButton(" CLEAR HISTORY")
         self.clear_history_btn.setIcon(
             get_icon("trash.png", "#f43f5e"))  # Keep red for clear action
-        self.clear_history_btn.setIconSize(QSize(16, 16))
-        self.clear_history_btn.setFixedHeight(36)
+        self.clear_history_btn.setIconSize(QSize(13, 13))
+        self.clear_history_btn.setFixedHeight(29)
         history_header.addWidget(self.clear_history_btn)
 
         # Queue Status Indicator
@@ -582,26 +582,19 @@ class MainWindow(QMainWindow):
         # Store history section for theme updates
         self.history_section = history_section
 
-        clear_menu = QMenu(self.clear_history_btn)
-        colors = get_theme_colors()
-        # Theme-aware menu styling for clear actions (red theme)
-        menu_bg = colors['bg_card'] if colors['text_primary'] == '#0f172a' else '#1a1010'
-        menu_text = "#f43f5e"  # Keep red for clear actions
-        menu_border = "#450a0a"  # Dark red border
-        menu_hover = "#450a0a"  # Dark red hover
-        clear_menu.setStyleSheet(
-            f"QMenu {{ background-color: {menu_bg}; color: {menu_text}; border: 1px solid {menu_border}; border-radius: 4px; padding: 4px; }} QMenu::item {{ padding: 8px 16px; border-radius: 4px; }} QMenu::item:selected {{ background-color: {menu_hover}; }}")
+        self.clear_menu = QMenu(self.clear_history_btn)
+        self._update_clear_menu_theme()
 
-        act_all = clear_menu.addAction("Clear All")
+        act_all = self.clear_menu.addAction("Clear All")
         act_all.triggered.connect(lambda: self._clear_tasks("all"))
 
-        act_comp = clear_menu.addAction("Clear Completed")
+        act_comp = self.clear_menu.addAction("Clear Completed")
         act_comp.triggered.connect(lambda: self._clear_tasks("completed"))
 
-        act_fail = clear_menu.addAction("Clear Failed")
+        act_fail = self.clear_menu.addAction("Clear Failed")
         act_fail.triggered.connect(lambda: self._clear_tasks("failed"))
 
-        self.clear_history_btn.setMenu(clear_menu)
+        self.clear_history_btn.setMenu(self.clear_menu)
 
         history_section.addLayout(history_header)
 
@@ -695,7 +688,7 @@ class MainWindow(QMainWindow):
         # Update theme colors for DOWNLOAD HISTORY title
         colors = get_theme_colors()
         self.hist_title.setStyleSheet(
-            "font-weight: 900; font-size: 22px; color: {};".format(colors['text_primary']))
+            "font-weight: 900; font-size: 17px; color: {};".format(colors['text_primary']))
 
         # Emit theme change signal for all TaskItems
         self.theme_changed.emit()
@@ -710,6 +703,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(get_stylesheet())
         # Update input wrapper styling
         self._update_input_theme()
+        # Update clear history menu theme
+        self._update_clear_menu_theme()
 
     def _update_input_theme(self):
         """Update input elements to match current theme."""
@@ -725,7 +720,7 @@ class MainWindow(QMainWindow):
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
                     border-bottom-right-radius: 4px;
-                    height: 58px;
+                    height: 46px;
                 }}
             """)
 
@@ -737,7 +732,7 @@ class MainWindow(QMainWindow):
                     border: none;
                     padding: 0;
                     color: {colors['text_primary']};
-                    font-size: 15px;
+                    font-size: 12px;
                     font-weight: 500;
                 }}
                 QLineEdit#InnerSearchInput:focus {{
@@ -750,6 +745,20 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'search_icon_label'):
             self.search_icon_label.setPixmap(
                 get_icon("link.png", colors['text_secondary']).pixmap(QSize(18, 18)))
+
+    def _update_clear_menu_theme(self):
+        """Update clear history menu to match current theme."""
+        if hasattr(self, 'clear_menu'):
+            colors = get_theme_colors()
+            menu_bg = colors['bg_card']
+            menu_text = colors['text_primary']
+            menu_border = colors['outer_border']
+            menu_hover = colors['accent']
+            menu_hover_text = colors['button_text']
+            self.clear_menu.setStyleSheet(
+                f"QMenu {{ background-color: {menu_bg}; color: {menu_text}; border: 1px solid {menu_border}; border-radius: 4px; padding: 4px; }}"
+                f"QMenu::item {{ padding: 8px 16px; border-radius: 4px; }}"
+                f"QMenu::item:selected {{ background-color: {menu_hover}; color: {menu_hover_text}; }}")
 
     def _check_theme(self):
         # We could compare current stylesheet with new one if we really wanted to be efficient

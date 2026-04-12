@@ -23,7 +23,7 @@ class SidebarButton(QPushButton):
         
         self.setObjectName("SidebarButton")
         self.setCheckable(True)
-        self.setFixedHeight(50)
+        self.setFixedHeight(40)
         self.setCursor(Qt.PointingHandCursor)
         # We'll dynamically update the icon color on hover and toggle
         self.toggled.connect(self._update_icon)
@@ -35,7 +35,7 @@ class SidebarButton(QPushButton):
         colors = get_theme_colors()
         color = colors['accent'] if self.isChecked() else colors['text_secondary']
         self.setIcon(get_icon(self.icon_name, color))
-        self.setIconSize(QSize(22, 22))
+        self.setIconSize(QSize(18, 18))
 
     def enterEvent(self, event):
         colors = get_theme_colors()
@@ -71,8 +71,8 @@ class Sidebar(QFrame):
         super().__init__()
         self.setObjectName("Sidebar")
         self.is_collapsed = True
-        self.expanded_width = 220
-        self.collapsed_width = 64
+        self.expanded_width = 185
+        self.collapsed_width = 65
         
         self.setFixedWidth(self.collapsed_width)
         
@@ -86,15 +86,15 @@ class Sidebar(QFrame):
         header_layout.setContentsMargins(16, 20, 16, 20)
         
         self.brand_label = QLabel("PRO <span style='color:#14b8a6'>EXTRACTOR</span>")
-        self.brand_label.setStyleSheet("font-weight: 900; font-size: 16px; letter-spacing: 1px; border: none;")
+        self.brand_label.setStyleSheet("font-weight: 900; font-size: 13px; letter-spacing: 1px; border: none;")
         self.brand_label.setTextFormat(Qt.RichText)
         header_layout.addWidget(self.brand_label)
         
         self.toggle_btn = QPushButton() # Hamburger
         colors = get_theme_colors()
         self.toggle_btn.setIcon(get_icon("menu.png", colors['text_secondary']))  # Theme-aware icon
-        self.toggle_btn.setIconSize(QSize(24, 24))
-        self.toggle_btn.setFixedSize(40, 40)
+        self.toggle_btn.setIconSize(QSize(19, 19))
+        self.toggle_btn.setFixedSize(32, 32)
         self.toggle_btn.setCursor(Qt.PointingHandCursor)
         # Theme-aware hover background
         hover_bg = colors['bg_card'] if colors['text_primary'] == '#0f172a' else '#262626'
