@@ -39,6 +39,21 @@ class DownloadCancelledException(Exception):
     pass
 
 
+class SimpleDownloadLogger:
+    """Custom logger that only shows download progress, not extractor details."""
+    
+    def debug(self, msg: str) -> None:
+        # Filter verbose extractor messages, only show download progress
+        if '[download]' in msg and ('Downloading item' in msg or 'Downloading playlist' in msg):
+            print(msg)
+    
+    def warning(self, msg: str) -> None:
+        pass
+    
+    def error(self, msg: str) -> None:
+        print(f"[error] {msg}")
+
+
 class DownloadFailedException(Exception):
     """Raised when download fails."""
     pass
@@ -201,6 +216,10 @@ class DesktopDownloader:
                 'ignoreerrors': True,
                 'noplaylist': False,
                 'yes_playlist': True,
+                'logger': SimpleDownloadLogger(),
+                'quiet': True,
+                # Speed up playlist info extraction - don't fetch full video details for each entry
+                'extract_flat': True,
             }
 
             # Apply browser cookies based on per-domain auth settings
@@ -281,14 +300,15 @@ class DesktopDownloader:
                 playlist_entries = []
                 if is_playlist and info.get("entries"):
                     for i, entry in enumerate(info.get("entries", [])):
-                        if entry and entry.get("url"):
+                        url = entry.get('url', '').strip() if entry else ''
+                        if entry and url:  
                             playlist_entries.append({
-                                "id": entry.get("id"),
-                                "title": entry.get("title"),
-                                "url": entry.get("url"),
-                                "duration": entry.get("duration"),
-                                "thumbnail": entry.get("thumbnail"),
-                                "index": i + 1  # Use 1-based index from natural order
+                                "id": entry.get('id'),
+                                "title": entry.get('title'),
+                                "url": url,
+                                "duration": entry.get('duration'),
+                                "thumbnail": entry.get('thumbnail'),
+                                "index": i + 1  
                             })
 
                 available_subtitles = set()
@@ -304,10 +324,12 @@ class DesktopDownloader:
                                 if 'tlang=' not in url:
                                     available_subtitles.add(lang)
 
-                extract_langs(info)
-                if is_playlist and not available_subtitles and info.get("entries") and len(info["entries"]) > 0:
-                    extract_langs(info["entries"][0])
-                available_subtitles = sorted(list(available_subtitles))
+                # Skip subtitle extraction for playlists (too slow for large lists)
+                if not is_playlist:
+                    extract_langs(info)
+                    available_subtitles = sorted(list(available_subtitles))
+                else:
+                    available_subtitles = []
 
                 return {
                     "title": info.get("title"),
@@ -470,6 +492,7 @@ class DesktopDownloader:
                 'timeout': config.get('downloads.timeout', HTTP_TIMEOUT),
                 'socket_timeout': SOCKET_TIMEOUT,
                 'merge_output_format': effective_merge_format if not audio_only else None,
+                'logger': SimpleDownloadLogger(),
             }
 
             # Apply browser cookies based on per-domain auth settings

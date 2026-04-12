@@ -1079,7 +1079,7 @@ class VirtualPlaylistModel:
     def __init__(self):
         self.items = []  # Store all playlist data
         self.visible_start = 0  # Start index of visible items
-        self.visible_count = 50  # Number of items to show at once
+        self.visible_count = 1000  # Number of items to show at once
         
     def load_playlist(self, entries):
         """Load playlist entries into virtual model."""
@@ -1098,7 +1098,8 @@ class VirtualPlaylistModel:
         
     def scroll_to(self, start_index):
         """Update visible window for scrolling."""
-        self.visible_start = max(0, min(start_index, len(self.items) - self.visible_count))
+        max_start = max(0, len(self.items) - self.visible_count)
+        self.visible_start = max(0, min(start_index, max_start))
         
     def get_all_selected(self):
         """Get all selected items from entire playlist."""
@@ -1110,8 +1111,9 @@ class VirtualPlaylistModel:
         
     def set_all_selected(self, selected):
         """Set selection state for all items."""
+        selected_set = set(selected) if not isinstance(selected, bool) else set()
         for i, item in enumerate(self.items):
-            item['selected'] = i in selected
+            item['selected'] = i in selected_set
             
     def search(self, query):
         """Search through all items."""
@@ -1178,7 +1180,7 @@ class VirtualPlaylistWidget(QFrame):
             item.get('title', ''),
             item.get('duration', 0),
             item.get('url', ''),
-            item.get('thumb_url', '')
+            item.get('thumbnail', '') or item.get('thumb_url', '')  # Support both field names
         )
         
         # Set initial selection state
@@ -1191,9 +1193,10 @@ class VirtualPlaylistWidget(QFrame):
     
     def _on_item_selection_changed(self, index: int, is_selected: bool):
         """Update model when individual item selection changes."""
-        # Update selection by index (handles duplicate URLs safely)
-        if 0 <= index < len(self.model.items):
-            self.model.items[index]['selected'] = is_selected
+        # Convert 1-based display index to 0-based array index
+        array_index = index - 1
+        if 0 <= array_index < len(self.model.items):
+            self.model.items[array_index]['selected'] = is_selected
         self.selection_changed.emit()
         
     def _clear_widgets(self):
@@ -1212,11 +1215,12 @@ class VirtualPlaylistWidget(QFrame):
     def _refresh_visible_widgets(self):
         """Refresh widgets to match model's visible items."""
         visible_items = self.model.get_visible_items()
+        visible_urls = {item.get('url') for item in visible_items}
         
         # Remove widgets that are no longer visible
         urls_to_remove = []
         for url, widget in self.widgets.items():
-            if not any(item.get('url') == url for item in visible_items):
+            if url not in visible_urls:
                 urls_to_remove.append(url)
                 
         for url in urls_to_remove:
@@ -1253,10 +1257,15 @@ class VirtualPlaylistWidget(QFrame):
                 for widget in self.widgets.values():
                     widget.set_selected(False)
         else:
-            # Handle list of indices
+            # Handle list of indices - get URLs of selected items
+            selected_urls = {
+                self.model.items[i].get('url') 
+                for i in selected 
+                if i < len(self.model.items)
+            }
             self.model.set_all_selected(selected)
             for widget in self.widgets.values():
-                widget.set_selected(widget.url in selected)
+                widget.set_selected(widget.url in selected_urls)
         
         self.selection_changed.emit()
 
@@ -1267,7 +1276,7 @@ class PlaylistItemWidget(QFrame):
     def __init__(self, index: int, title: str, duration: int, url: str, thumb_url: str = ""):
         super().__init__()
         self.index = index
-        self.url = url
+        self.url = url.strip() if url else ""  # Validate URL, ensure non-empty
         self.title = title
         self.thumb_url = thumb_url
         self.setObjectName("ListItem")
@@ -1300,10 +1309,13 @@ class PlaylistItemWidget(QFrame):
         return self.checkbox.isChecked()
 
     def set_selected(self, selected: bool):
+        """Update checkbox state without emitting signal to prevent circular updates."""
+        self.checkbox.blockSignals(True)
         self.checkbox.setChecked(selected)
+        self.checkbox.blockSignals(False)
 
     def _on_checkbox_changed(self, state):
-        """Emit signal when checkbox state changes."""
+        """Emit signal when checkbox state changes (user interaction only)."""
         self.selection_changed.emit(self.index, state == Qt.Checked)
 
     def get_data(self) -> dict:

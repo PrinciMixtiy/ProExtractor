@@ -852,7 +852,6 @@ class MainWindow(QMainWindow):
 
             # Load entries efficiently (only creates visible widgets)
             self.virtual_playlist.load_playlist(entries)
-            self.virtual_playlist.load_playlist(entries)
         else:
             self.playlist_header_container.hide()
             self.playlist_scroll.hide()
