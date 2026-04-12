@@ -8,12 +8,12 @@ version = "1.0.0"
 authors = [
     { name = "PRO EXTRACTOR Contributors" },
 ]
-description = "A modern desktop application for downloading YouTube videos and playlists."
+description = "A modern desktop application for downloading videos and playlists."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Intended Audience :: End Users/Desktop",
     "Topic :: Multimedia :: Video",
@@ -23,11 +23,13 @@ dependencies = [
     "yt-dlp",
     "darkdetect",
     "requests",
+    "secretstorage",
+    "cryptography",
 ]
 
 [project.gui-scripts]
-pro-extractor = "desktop.main:main"
+pro-extractor = "main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["desktop*"]
+include = ["*"]
