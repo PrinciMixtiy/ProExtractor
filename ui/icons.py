@@ -1,7 +1,7 @@
 import os
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
-from desktop.core.utils import get_resource_path
+from core.utils import get_resource_path
 
 
 def get_icon(name: str, color_hex: str = "#E2E8F0") -> QIcon:

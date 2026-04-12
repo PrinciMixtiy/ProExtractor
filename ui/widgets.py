@@ -3,10 +3,10 @@ from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QSizePolicy, QComboBox, QCheckBox, QWidget, QScrollArea, QFileDialog)
 from PySide6.QtCore import Qt, Signal, QSize, Property, QEasingCurve, QPropertyAnimation, QRect
 from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QFont
-from desktop.ui.icons import get_icon
-from desktop.core.config import config
-from desktop.core.constants import DEFAULT_PAGE_SIZE, PAGE_LABEL_STYLE, QUEUE_WAITING_COLOR
-from desktop.styles import get_theme_colors
+from ui.icons import get_icon
+from core.config import config
+from core.constants import DEFAULT_PAGE_SIZE, PAGE_LABEL_STYLE, QUEUE_WAITING_COLOR
+from styles import get_theme_colors
 import requests
 import os
 

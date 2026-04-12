@@ -29,9 +29,9 @@ import time
 import logging
 from typing import Any, Dict, Optional, Callable
 from yt_dlp import YoutubeDL
-from desktop.core.config import config
-from desktop.core.constants import DEFAULT_RETRIES, FRAGMENT_RETRIES, HTTP_TIMEOUT, SOCKET_TIMEOUT, RETRY_DELAY
-from desktop.core.utils import sanitize_filename
+from core.config import config
+from core.constants import DEFAULT_RETRIES, FRAGMENT_RETRIES, HTTP_TIMEOUT, SOCKET_TIMEOUT, RETRY_DELAY
+from core.utils import sanitize_filename, extract_domain
 
 
 class DownloadCancelledException(Exception):
@@ -56,6 +56,40 @@ class DesktopDownloader:
     def __init__(self):
         # We don't need a default output path as it's provided per download
         pass
+
+    def _apply_browser_cookies(self, ydl_opts: Dict[str, Any], url: str) -> None:
+        """Apply browser cookies based on per-domain auth settings.
+        
+        Args:
+            ydl_opts: yt-dlp options dictionary to modify
+            url: The URL being downloaded
+        """
+        domain = extract_domain(url)
+        if not domain:
+            return
+        
+        # Get auth configuration
+        browser_source = config.get('auth.browser_source', 'chrome')
+        domain_overrides = config.get('auth.domain_overrides', {})
+        default_cookies = config.get('auth.default_cookies', True)
+        
+        # If browser source is not set or "none", don't use cookies
+        if not browser_source or browser_source.lower() == 'none':
+            return
+        
+        # Check if domain has an override
+        use_cookies = None
+        for configured_domain, enabled in domain_overrides.items():
+            if domain == configured_domain or domain.endswith('.' + configured_domain):
+                use_cookies = enabled
+                break
+        
+        # If no override found, use the default setting
+        if use_cookies is None:
+            use_cookies = default_cookies
+        
+        if use_cookies:
+            ydl_opts['cookiesfrombrowser'] = (browser_source,)
 
     def _has_ffmpeg_encoder(self, encoder_name: str) -> bool:
         """Check if FFmpeg has a specific encoder available."""
@@ -164,15 +198,13 @@ class DesktopDownloader:
                 'timeout': timeout,
                 'socket_timeout': SOCKET_TIMEOUT,
                 'nocheckcertificate': False,
-                'extract_flat': 'in_playlist',
                 'ignoreerrors': True,
                 'noplaylist': False,
                 'yes_playlist': True,
             }
 
-            browser_cookies = config.get('advanced.browser_cookies', 'chrome')
-            if browser_cookies:
-                ydl_opts['cookiesfrombrowser'] = (browser_cookies,)
+            # Apply browser cookies based on per-domain auth settings
+            self._apply_browser_cookies(ydl_opts, url)
 
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -248,7 +280,7 @@ class DesktopDownloader:
 
                 playlist_entries = []
                 if is_playlist and info.get("entries"):
-                    for entry in info.get("entries", []):
+                    for i, entry in enumerate(info.get("entries", [])):
                         if entry and entry.get("url"):
                             playlist_entries.append({
                                 "id": entry.get("id"),
@@ -256,7 +288,7 @@ class DesktopDownloader:
                                 "url": entry.get("url"),
                                 "duration": entry.get("duration"),
                                 "thumbnail": entry.get("thumbnail"),
-                                "index": entry.get("playlist_index") or len(playlist_entries) + 1
+                                "index": i + 1  # Use 1-based index from natural order
                             })
 
                 available_subtitles = set()
@@ -440,9 +472,8 @@ class DesktopDownloader:
                 'merge_output_format': effective_merge_format if not audio_only else None,
             }
 
-            browser_cookies = config.get('advanced.browser_cookies', 'chrome')
-            if browser_cookies:
-                options['cookiesfrombrowser'] = (browser_cookies,)
+            # Apply browser cookies based on per-domain auth settings
+            self._apply_browser_cookies(options, url)
 
             if force_overwrites:
                 # Ensure yt-dlp overwrites existing target files.

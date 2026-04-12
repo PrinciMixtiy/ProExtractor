@@ -1,5 +1,5 @@
 from PySide6.QtCore import QObject, Signal, QThread
-from desktop.core.downloader import DesktopDownloader
+from core.downloader import DesktopDownloader
 import traceback
 from typing import Optional
 

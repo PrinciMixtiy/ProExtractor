@@ -81,6 +81,20 @@ class ConfigManager:
                 "temp_dir": "",
                 "log_dir": ""
             },
+            "auth": {
+                "browser_source": null,
+                "default_cookies": False,
+                "domain_overrides": {
+                    "youtube.com": False,
+                    "tiktok.com": False,
+                    "instagram.com": False,
+                    "facebook.com": False,
+                    "twitter.com": False,
+                    "x.com": False,
+                    "twitch.tv": False,
+                    "reddit.com": False
+                }
+            },
             "advanced": {
                 "ffmpeg_path": "",
                 "proxy": "",

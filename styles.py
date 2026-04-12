@@ -1,5 +1,5 @@
 import darkdetect
-from desktop.core.config import config
+from core.config import config
 
 
 def get_theme_colors():

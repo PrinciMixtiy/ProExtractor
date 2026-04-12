@@ -14,10 +14,10 @@ from PySide6.QtWidgets import (
     QGroupBox, QFormLayout, QStackedWidget, QButtonGroup,
     QRadioButton, QMessageBox
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 
-from desktop.core.config import config
-from desktop.core.constants import (
+from core.config import config
+from core.constants import (
     CONTENT_MARGIN, CARD_SPACING, BUTTON_HEIGHT,
     INPUT_HEIGHT, FILENAME_TAGS
 )
@@ -63,9 +63,14 @@ class SettingsPage(QWidget):
         self.tab_buttons.addButton(self.downloads_btn, 1)
         tab_buttons_layout.addWidget(self.downloads_btn)
         
+        self.auth_btn = QPushButton("Authentication")
+        self.auth_btn.setCheckable(True)
+        self.tab_buttons.addButton(self.auth_btn, 2)
+        tab_buttons_layout.addWidget(self.auth_btn)
+        
         self.advanced_btn = QPushButton("Advanced")
         self.advanced_btn.setCheckable(True)
-        self.tab_buttons.addButton(self.advanced_btn, 2)
+        self.tab_buttons.addButton(self.advanced_btn, 3)
         tab_buttons_layout.addWidget(self.advanced_btn)
         
         tab_buttons_layout.addStretch()
@@ -77,10 +82,12 @@ class SettingsPage(QWidget):
         # Create settings sections
         self.general_section = GeneralSettings()
         self.downloads_section = DownloadsSettings()
+        self.auth_section = AuthenticationSettings()
         self.advanced_section = AdvancedSettings()
         
         self.stacked_widget.addWidget(self.general_section)
         self.stacked_widget.addWidget(self.downloads_section)
+        self.stacked_widget.addWidget(self.auth_section)
         self.stacked_widget.addWidget(self.advanced_section)
         
         layout.addWidget(self.stacked_widget)
@@ -106,6 +113,7 @@ class SettingsPage(QWidget):
         # Connect settings changes
         self.general_section.setting_changed.connect(self._on_setting_changed)
         self.downloads_section.setting_changed.connect(self._on_setting_changed)
+        self.auth_section.setting_changed.connect(self._on_setting_changed)
         self.advanced_section.setting_changed.connect(self._on_setting_changed)
     
     def _on_tab_changed(self, button):
@@ -121,6 +129,7 @@ class SettingsPage(QWidget):
         """Load settings from configuration."""
         self.general_section.load_settings()
         self.downloads_section.load_settings()
+        self.auth_section.load_settings()
         self.advanced_section.load_settings()
         # Apply button remains enabled
     
@@ -128,6 +137,7 @@ class SettingsPage(QWidget):
         """Apply all settings."""
         self.general_section.save_settings()
         self.downloads_section.save_settings()
+        self.auth_section.save_settings()
         self.advanced_section.save_settings()
         
         config.save()
@@ -501,3 +511,219 @@ class AdvancedSettings(QWidget):
         # Removed: proxy, user_agent, debug_mode, log_level settings
         
         config.set('paths.data_dir', self.data_dir.text())
+
+
+class AuthenticationSettings(QWidget):
+    """Authentication settings section for browser cookies."""
+    
+    setting_changed = Signal()
+    
+    # Default domains with their display names
+    DEFAULT_DOMAINS = {
+        "youtube.com": "YouTube",
+        "tiktok.com": "TikTok",
+        "instagram.com": "Instagram",
+        "facebook.com": "Facebook",
+        "twitter.com": "Twitter / X",
+        "x.com": "X (Twitter)",
+        "twitch.tv": "Twitch",
+        "reddit.com": "Reddit"
+    }
+    
+    def __init__(self):
+        super().__init__()
+        self.domain_checkboxes = {}
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """Setup authentication settings UI."""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(CARD_SPACING)
+        
+        # Browser Source Section
+        browser_group = QGroupBox("Browser Cookie Source")
+        browser_layout = QVBoxLayout(browser_group)
+        
+        browser_label = QLabel("Select which browser to extract cookies from:")
+        browser_layout.addWidget(browser_label)
+        
+        self.browser_combo = QComboBox()
+        self.browser_combo.addItems(["Chrome", "Firefox", "Edge", "Safari", "Disabled"])
+        self.browser_combo.setFixedHeight(INPUT_HEIGHT)
+        self.browser_combo.currentIndexChanged.connect(self._on_browser_changed)
+        browser_layout.addWidget(self.browser_combo)
+        
+        info_label = QLabel("Cookies help download age-restricted or private content. "
+                           "Select 'Disabled' to never use browser cookies.")
+        info_label.setWordWrap(True)
+        info_label.setObjectName("infoLabel")
+        browser_layout.addWidget(info_label)
+        
+        layout.addWidget(browser_group)
+        
+        # Default for Unspecified Domains
+        defaults_group = QGroupBox("Unspecified Domains")
+        defaults_layout = QVBoxLayout(defaults_group)
+        
+        self.default_cookies_checkbox = QCheckBox("Use cookies for domains not in the list below")
+        self.default_cookies_checkbox.setChecked(True)
+        self.default_cookies_checkbox.setToolTip("When enabled, browser cookies will be used for any site not explicitly configured above.")
+        self.default_cookies_checkbox.stateChanged.connect(self._on_setting_changed)
+        defaults_layout.addWidget(self.default_cookies_checkbox)
+        
+        layout.addWidget(defaults_group)
+        
+        # Domain Toggles Section
+        domains_group = QGroupBox("Per-Site Cookie Usage")
+        domains_layout = QVBoxLayout(domains_group)
+        
+        domains_label = QLabel("Enable/disable cookies for specific sites:")
+        domains_layout.addWidget(domains_label)
+        
+        # Create scroll area for many domains
+        from PySide6.QtWidgets import QScrollArea, QWidget as QScrollWidget
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        scroll_widget = QScrollWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setSpacing(8)
+        
+        # Create checkbox for each default domain
+        for domain, display_name in self.DEFAULT_DOMAINS.items():
+            checkbox = QCheckBox(f"{display_name} ({domain})")
+            checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self._on_setting_changed)
+            self.domain_checkboxes[domain] = checkbox
+            scroll_layout.addWidget(checkbox)
+        
+        # Custom domains container
+        self.custom_domains_layout = QVBoxLayout()
+        self.custom_domains_layout.setSpacing(8)
+        scroll_layout.addLayout(self.custom_domains_layout)
+        
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        domains_layout.addWidget(scroll)
+        
+        # Add custom domain button
+        add_layout = QHBoxLayout()
+        self.custom_domain_input = QLineEdit()
+        self.custom_domain_input.setPlaceholderText("example.com")
+        self.custom_domain_input.setFixedHeight(INPUT_HEIGHT)
+        add_layout.addWidget(self.custom_domain_input)
+        
+        add_btn = QPushButton("Add Domain")
+        add_btn.setFixedHeight(BUTTON_HEIGHT)
+        add_btn.clicked.connect(self._add_custom_domain)
+        add_layout.addWidget(add_btn)
+        
+        domains_layout.addLayout(add_layout)
+        layout.addWidget(domains_group)
+        
+        layout.addStretch()
+    
+    def _on_browser_changed(self, index):
+        """Handle browser selection change."""
+        # Enable/disable checkboxes based on browser selection
+        is_disabled = (index == 4)  # "Disabled" is index 4
+        self.default_cookies_checkbox.setEnabled(not is_disabled)
+        for checkbox in self.domain_checkboxes.values():
+            checkbox.setEnabled(not is_disabled)
+        # Also disable custom domain checkboxes
+        for i in range(self.custom_domains_layout.count()):
+            widget = self.custom_domains_layout.itemAt(i).widget()
+            if widget and isinstance(widget, QCheckBox):
+                widget.setEnabled(not is_disabled)
+        self._on_setting_changed()
+    
+    def _add_custom_domain(self):
+        """Add a custom domain to the list."""
+        domain = self.custom_domain_input.text().strip().lower()
+        if not domain:
+            return
+        
+        # Validate domain format (basic check)
+        if '.' not in domain or domain.startswith('.') or domain.endswith('.'):
+            QMessageBox.warning(self, "Invalid Domain", "Please enter a valid domain (e.g., example.com)")
+            return
+        
+        # Check if already exists
+        if domain in self.domain_checkboxes:
+            QMessageBox.information(self, "Domain Exists", f"{domain} is already in the list.")
+            return
+        
+        # Add checkbox for custom domain
+        checkbox = QCheckBox(f"{domain} (custom)")
+        checkbox.setChecked(True)
+        checkbox.stateChanged.connect(self._on_setting_changed)
+        
+        # Check if browser is disabled
+        is_disabled = (self.browser_combo.currentIndex() == 4)
+        checkbox.setEnabled(not is_disabled)
+        
+        self.domain_checkboxes[domain] = checkbox
+        self.custom_domains_layout.addWidget(checkbox)
+        self.custom_domain_input.clear()
+        self._on_setting_changed()
+    
+    def _on_setting_changed(self):
+        """Emit signal when any setting changes."""
+        self.setting_changed.emit()
+    
+    def load_settings(self):
+        """Load authentication settings."""
+        browser_source = config.get('auth.browser_source', 'chrome')
+        browser_map = {
+            'chrome': 0,
+            'firefox': 1,
+            'edge': 2,
+            'safari': 3,
+            'none': 4,
+            '': 4
+        }
+        self.browser_combo.setCurrentIndex(browser_map.get(browser_source.lower(), 0))
+        
+        # Load default cookies setting
+        self.default_cookies_checkbox.setChecked(config.get('auth.default_cookies', True))
+        
+        # Load domain overrides
+        domain_overrides = config.get('auth.domain_overrides', {})
+        
+        # Update default domain checkboxes
+        for domain, checkbox in self.domain_checkboxes.items():
+            if domain in domain_overrides:
+                checkbox.setChecked(domain_overrides[domain])
+        
+        # Load any custom domains that aren't in defaults
+        default_keys = set(self.DEFAULT_DOMAINS.keys())
+        for domain, enabled in domain_overrides.items():
+            if domain not in default_keys and domain not in self.domain_checkboxes:
+                # Add custom domain checkbox
+                checkbox = QCheckBox(f"{domain} (custom)")
+                checkbox.setChecked(enabled)
+                checkbox.stateChanged.connect(self._on_setting_changed)
+                self.domain_checkboxes[domain] = checkbox
+                self.custom_domains_layout.addWidget(checkbox)
+        
+        # Trigger browser changed to set enabled state
+        self._on_browser_changed(self.browser_combo.currentIndex())
+    
+    def save_settings(self):
+        """Save authentication settings."""
+        # Save browser source
+        browser_map = {0: 'chrome', 1: 'firefox', 2: 'edge', 3: 'safari', 4: None}
+        browser_source = browser_map.get(self.browser_combo.currentIndex(), 'chrome')
+        config.set('auth.browser_source', browser_source)
+        
+        # Save default cookies setting
+        config.set('auth.default_cookies', self.default_cookies_checkbox.isChecked())
+        
+        # Save domain overrides
+        domain_overrides = {}
+        for domain, checkbox in self.domain_checkboxes.items():
+            domain_overrides[domain] = checkbox.isChecked()
+        
+        config.set('auth.domain_overrides', domain_overrides)

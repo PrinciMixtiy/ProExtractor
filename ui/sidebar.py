@@ -2,8 +2,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame)
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QSize
 
-from desktop.ui.icons import get_icon
-from desktop.styles import get_theme_colors
+from ui.icons import get_icon
+from styles import get_theme_colors
 
 class SidebarButton(QPushButton):
     """Specific styling for navigation sidebar buttons."""

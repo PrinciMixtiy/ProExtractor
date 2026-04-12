@@ -21,7 +21,7 @@ import os
 import threading
 from datetime import datetime
 from typing import List, Dict, Any
-from desktop.core.config import config
+from core.config import config
 
 # Get absolute path to data directory (handles any working directory)
 _MODULE_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -13,10 +13,10 @@ if parent_dir not in sys.path:
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtGui import QIcon
-from desktop.ui.main_window import MainWindow
-from desktop.core.config import config
-from desktop.core.constants import APP_NAME, ORG_NAME
-from desktop.core.utils import get_resource_path
+from ui.main_window import MainWindow
+from core.config import config
+from core.constants import APP_NAME, ORG_NAME
+from core.utils import get_resource_path
 
 
 def check_dependencies():
@@ -38,7 +38,7 @@ def check_dependencies():
 
 def setup_logging():
     """Configure application-wide logging."""
-    from desktop.core.constants import APP_NAME
+    from core.constants import APP_NAME
     
     # Determine log directory (platform specific)
     if sys.platform == 'win32':

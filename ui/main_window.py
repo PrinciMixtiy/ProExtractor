@@ -1,23 +1,23 @@
 import os
 import logging
-from desktop.core.worker import WorkerThread, InfoWorker, DownloadWorker
-from desktop.core.storage import HistoryManager
-from desktop.core.config import config
-from desktop.core.downloader import DesktopDownloader
-from desktop.core.constants import (DEFAULT_PAGE_SIZE, DEFAULT_MAX_CONCURRENT,
+from core.worker import WorkerThread, InfoWorker, DownloadWorker
+from core.storage import HistoryManager
+from core.config import config
+from core.downloader import DesktopDownloader
+from core.constants import (DEFAULT_PAGE_SIZE, DEFAULT_MAX_CONCURRENT,
                                     QUEUE_WAITING_COLOR, QUEUE_ACTIVE_COLOR,
                                     QUEUE_STATUS_STYLE)
-from desktop.ui.sidebar import Sidebar
-from desktop.ui.settings import SettingsPage
+from ui.sidebar import Sidebar
+from ui.settings import SettingsPage
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QLineEdit, QPushButton, QLabel, QScrollArea,
                                QMessageBox, QFrame, QStackedWidget, QMenu,
                                QCheckBox, QSizePolicy)
 from PySide6.QtCore import Qt, Signal, QTimer, Slot, QSize
 from PySide6.QtGui import QTransform
-from desktop.styles import get_stylesheet, get_theme_colors
-from desktop.ui.icons import get_icon
-from desktop.ui.widgets import (VideoInfoCard, StreamOptionsCard, TaskItem,
+from styles import get_stylesheet, get_theme_colors
+from ui.icons import get_icon
+from ui.widgets import (VideoInfoCard, StreamOptionsCard, TaskItem,
                                 PlaylistItemWidget, VirtualPlaylistWidget, PaginationWidget)
 import uuid
 import requests
