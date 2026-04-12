@@ -1,3 +1,11 @@
+"""
+Custom widgets for the Pro Extractor desktop application.
+
+This module provides specialized UI widgets including toggle switches,
+video info cards, stream options, task items, playlist widgets, and
+pagination controls for the application interface.
+"""
+
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QProgressBar, QFrame, QLineEdit,
                              QSizePolicy, QComboBox, QCheckBox, QWidget, QScrollArea, QFileDialog)
@@ -5,8 +13,10 @@ from PySide6.QtCore import Qt, Signal, QSize, Property, QEasingCurve, QPropertyA
 from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QFont
 from ui.icons import get_icon
 from core.config import config
-from core.constants import DEFAULT_PAGE_SIZE, PAGE_LABEL_STYLE, QUEUE_WAITING_COLOR
+from core.constants import (DEFAULT_PAGE_SIZE, PAGE_LABEL_STYLE, QUEUE_WAITING_COLOR, 
+                              THUMBNAIL_DOWNLOAD_TIMEOUT, DownloadStatus)
 from styles import get_theme_colors
+from pathlib import Path
 import requests
 import os
 
@@ -247,7 +257,7 @@ class ThumbnailLabel(QLabel):
         if not url:
             return
         try:
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=THUMBNAIL_DOWNLOAD_TIMEOUT)
             image = QImage()
             image.loadFromData(response.content)
             self._pixmap = QPixmap.fromImage(image)
@@ -498,9 +508,8 @@ class StreamOptionsCard(QFrame):
         self.folder_btn.clicked.connect(self._on_select_folder)
         
         self.current_streams = []
-        # Support both legacy and new config keys
-        default_folder = config.get('downloads.path') or config.get('general.default_download_folder')
-        self.target_folder = default_folder or os.path.join(os.path.expanduser("~"), "Downloads")
+
+        self.target_folder = config.get('general.default_download_folder', str(Path.home() / "Downloads"))
         self.path_display.setText(self.target_folder)
 
         # Hidden labels for logic back-compat (if needed by main_window)
@@ -625,7 +634,7 @@ class StreamOptionsCard(QFrame):
                     self.quality_combo.addItem(label, f)
 
         # Try to match preferred resolution from settings
-        default_quality = config.get('downloads.default_quality', 'highest')
+        default_quality = config.get('downloads.default_quality', '720p')
         match_index = 0
         if default_quality != 'highest':
             for i in range(self.quality_combo.count()):
@@ -648,7 +657,7 @@ class StreamOptionsCard(QFrame):
         self.thumb_toggle.toggle.setChecked(config.get('downloads.embed_thumbnails', True))
         self.sub_toggle.toggle.setChecked(config.get('downloads.auto_generate_subtitles', False))
 
-        default_quality = config.get('downloads.default_quality', 'highest')
+        default_quality = config.get('downloads.default_quality', '720p')
         default_format = config.get('downloads.default_format', 'mp4')
         
         for i in range(self.format_combo.count()):
@@ -718,7 +727,7 @@ class StreamOptionsCard(QFrame):
         self.sub_toggle.toggle.setChecked(config.get('downloads.auto_generate_subtitles', False))
         
         # Update target folder from config as well
-        default_folder = config.get('downloads.path') or config.get('general.default_download_folder')
+        default_folder = config.get('general.default_download_folder', str(Path.home() / "Downloads"))
         if default_folder:
             self.set_target_folder(default_folder)
 
@@ -969,7 +978,7 @@ class TaskItem(QFrame):
         self.open_btn.hide()
         self.progress_bar.hide()
         
-        if self.current_status == "processing":
+        if self.current_status == DownloadStatus.PROCESSING.value:
             self.pause_btn.show()
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             # Show the descriptive stage directly from yt-dlp
@@ -977,14 +986,14 @@ class TaskItem(QFrame):
             # Only move the progress bar during active downloads.
             self.progress_bar.setRange(0, 100)
             self.progress_bar.show()
-        elif self.current_status == "paused":
+        elif self.current_status == DownloadStatus.PAUSED.value:
             self.resume_btn.show()
             self.resume_btn.setIcon(get_icon("play.png", self._icon_color))
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.status_badge.setText("PAUSED")
             self.speed_label.setText("Paused")
             self.progress_bar.setValue(0)
-        elif self.current_status == "pending":
+        elif self.current_status == DownloadStatus.DOWNLOADING.value:
             # Ready to start, but max_concurrent may still be saturated.
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.delete_btn.show()
@@ -997,7 +1006,7 @@ class TaskItem(QFrame):
             self.speed_label.show()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
-        elif self.current_status == "queued":
+        elif self.current_status == DownloadStatus.QUEUED.value:
             # Waiting behind capacity.
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.delete_btn.show()
@@ -1009,7 +1018,7 @@ class TaskItem(QFrame):
             self.speed_label.show()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
-        elif self.current_status == "completed":
+        elif self.current_status == DownloadStatus.COMPLETED.value:
             self.open_btn.show()
             self.delete_btn.setIcon(get_icon("trash.png", self._icon_color))
             self.progress_bar.hide()
@@ -1025,7 +1034,7 @@ class TaskItem(QFrame):
             self.status_badge.setStyleSheet("color: #f59e0b; font-size: 10px; font-weight: 900;")
             self.speed_label.setText("Skipped (already exists)")
             self.speed_label.show()
-        elif self.current_status == "failed":
+        elif self.current_status == DownloadStatus.FAILED.value:
             self.resume_btn.show()
             self.resume_btn.setIcon(get_icon("retry.png", self._icon_color))
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
@@ -1033,7 +1042,7 @@ class TaskItem(QFrame):
             self.status_badge.setStyleSheet("color: #f43f5e;")
 
     def update_progress(self, p: float, speed: float, eta: float):
-        self.current_status = "processing"
+        self.current_status = DownloadStatus.PROCESSING.value
         self._update_ui_state()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(int(p))
@@ -1047,18 +1056,18 @@ class TaskItem(QFrame):
         self.size_label.setText(f"{int(p)}% Complete")
 
     def set_status(self, text: str):
-        if "Paused" in text: self.current_status = "paused"
+        if "Paused" in text: self.current_status = DownloadStatus.PAUSED.value
         elif "Starting" in text or "Downloading" in text or "Converting" in text or "Embedding" in text or "Processing" in text: 
-            self.current_status = "processing"
+            self.current_status = DownloadStatus.PROCESSING.value
             # Store cleaned status message for the badge
             self.current_msg = text.strip().rstrip('.')
-        elif "Waiting" in text: self.current_status = "queued"
+        elif "Waiting" in text: self.current_status = DownloadStatus.QUEUED.value
         elif "Skipped" in text: self.current_status = "skipped"
-        elif "Queued" in text: self.current_status = "pending"
+        elif "Queued" in text: self.current_status = DownloadStatus.DOWNLOADING.value
         self._update_ui_state()
 
     def set_finished(self, path: str):
-        self.current_status = "completed"
+        self.current_status = DownloadStatus.COMPLETED.value
         self.progress_bar.setValue(100)
         self._update_ui_state()
         size_bytes = os.path.getsize(path) if os.path.exists(path) else 0
@@ -1067,7 +1076,7 @@ class TaskItem(QFrame):
         self.size_label.setText(size_str)
 
     def set_error(self, error: str):
-        self.current_status = "failed"
+        self.current_status = DownloadStatus.FAILED.value
         self.status_badge.setText("ERROR")
         self.speed_label.setText(error)
         self.speed_label.setStyleSheet("color: #f43f5e; font-size: 9px;")

@@ -1,3 +1,10 @@
+"""
+Build script for creating a standalone executable using PyInstaller.
+
+This module provides automated build generation for distributing the
+Pro Extractor application as a standalone executable.
+"""
+
 import sys
 import subprocess
 from pathlib import Path

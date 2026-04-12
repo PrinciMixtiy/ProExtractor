@@ -1,5 +1,5 @@
 """
-Configuration management for Video Downloader Desktop.
+Configuration management for the Pro Extractor desktop application.
 
 This module provides centralized configuration management with default values,
 environment variable support, and JSON persistence.
@@ -50,39 +50,30 @@ class ConfigManager:
         """Get default configuration values."""
         return {
             "general": {
-                "default_download_folder": str(Path.home() / "Downloads" / "YouTubeDownloader"),
-                "default_filename_pattern": "{title} - {id}",
-                "launch_minimized": False,
-                "start_on_login": False,
+                "default_download_folder": str(Path.home() / "Downloads"),
+                "default_filename_pattern": "{title}",
                 "theme": "auto",  # auto, light, dark
                 "language": "en"
             },
             "downloads": {
-                "max_concurrent": 3,
+                "max_concurrent": 4,
                 "retries_on_failure": 5,
+                "retry_delay": 1000,
                 "auto_resume": True,
-                "default_quality": "highest",
+                "default_quality": "720p",
                 "default_format": "mp4",
-                "embed_thumbnails": False,
+                "embed_thumbnails": True,
                 "auto_generate_subtitles": False,
                 "subtitle_language": "en",
-                "chunk_size": 8192,
+                "audio_only": False,
                 "timeout": 30
-            },
-            "ui": {
-                "window_width": 1100,
-                "window_height": 700,
-                "sidebar_collapsed": False,
-                "theme_check_interval": 5000
             },
             "paths": {
                 "data_dir": "",
-                "cache_dir": "",
-                "temp_dir": "",
                 "log_dir": ""
             },
             "auth": {
-                "browser_source": null,
+                "browser_source": None,
                 "default_cookies": False,
                 "domain_overrides": {
                     "youtube.com": False,
@@ -97,11 +88,6 @@ class ConfigManager:
             },
             "advanced": {
                 "ffmpeg_path": "",
-                "proxy": "",
-                "user_agent": "",
-                "debug_mode": False,
-                "log_level": "INFO",
-                "browser_cookies": "chrome"
             }
         }
     

@@ -1,15 +1,23 @@
+"""
+Styles and theme management for the Pro Extractor desktop application.
+
+This module provides theme color palettes and stylesheet generation
+for light and dark modes, with automatic system theme detection.
+"""
+
 import darkdetect
 from core.config import config
+from core.constants import Theme
 
 
 def get_theme_colors():
     """Return color palette based on system theme."""
     # Check for configured theme preference
-    theme_preference = config.get('general.theme', 'auto')
+    theme_preference = config.get('general.theme', Theme.AUTO.value)
 
-    if theme_preference == 'dark':
+    if theme_preference == Theme.DARK.value:
         is_dark = True
-    elif theme_preference == 'light':
+    elif theme_preference == Theme.LIGHT.value:
         is_dark = False
     else:  # auto
         is_dark = darkdetect.isDark()

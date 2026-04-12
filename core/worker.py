@@ -1,3 +1,7 @@
+"""
+Worker classes for background operations in the desktop application.
+"""
+
 from PySide6.QtCore import QObject, Signal, QThread
 from core.downloader import DesktopDownloader
 import traceback

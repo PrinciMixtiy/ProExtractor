@@ -1,11 +1,8 @@
 """
-Utility functions for the YouTube Downloader application.
+Utility functions for the Pro Extractor desktop application.
+
 This module provides helper functions used across the application for
 filename sanitization, resource path resolution, and URL parsing.
-Functions:
-    sanitize_filename: Sanitizes video titles for use as valid filenames.
-    get_resource_path: Resolves absolute paths for bundled resources.
-    extract_domain: Extracts normalized domain from a URL.
 """
 
 import re

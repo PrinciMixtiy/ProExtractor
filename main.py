@@ -1,3 +1,10 @@
+"""
+Main entry point for the Pro Extractor desktop application.
+
+This module initializes the PySide6 application, sets up logging,
+checks dependencies, and launches the main application window.
+"""
+
 import sys
 import os
 import subprocess
@@ -15,7 +22,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtGui import QIcon
 from ui.main_window import MainWindow
 from core.config import config
-from core.constants import APP_NAME, ORG_NAME
+from core.constants import APP_NAME, ORG_NAME, LOGS_DIR_NAME
 from core.utils import get_resource_path
 
 
@@ -39,14 +46,20 @@ def check_dependencies():
 def setup_logging():
     """Configure application-wide logging."""
     from core.constants import APP_NAME
+    from core.config import config
     
-    # Determine log directory (platform specific)
-    if sys.platform == 'win32':
-        log_dir = Path(os.environ.get('APPDATA', '.')) / APP_NAME / "logs"
-    elif sys.platform == 'darwin':
-        log_dir = Path.home() / "Library" / "Logs" / APP_NAME
+    # Check config for custom log directory
+    config_log_dir = config.get('paths.log_dir')
+    if config_log_dir:
+        log_dir = Path(config_log_dir)
     else:
-        log_dir = Path.home() / ".config" / APP_NAME / "logs"
+        # Determine log directory (platform specific)
+        if sys.platform == 'win32':
+            log_dir = Path(os.environ.get('APPDATA', '.')) / APP_NAME / LOGS_DIR_NAME
+        elif sys.platform == 'darwin':
+            log_dir = Path.home() / "Library" / "Logs" / APP_NAME
+        else:
+            log_dir = Path.home() / ".config" / APP_NAME / LOGS_DIR_NAME
         
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "app.log"

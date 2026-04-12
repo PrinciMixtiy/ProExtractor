@@ -1,7 +1,15 @@
+"""
+Sidebar navigation component for the Pro Extractor desktop application.
+
+This module provides the collapsible sidebar widget with navigation buttons,
+animated transitions, and version display for the application interface.
+"""
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QFrame)
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QSize
 
+from core.constants import APP_VERSION
 from ui.icons import get_icon
 from styles import get_theme_colors
 
@@ -119,7 +127,7 @@ class Sidebar(QFrame):
         self.layout.addStretch()
         
         # --- Footer Section ---
-        self.version_label = QLabel("v1.0.0 PRECISION")
+        self.version_label = QLabel(f"v{APP_VERSION} PRECISION")
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("color: #64748b; font-size: 10px; font-weight: bold; background-color: transparent; border: none;")
         self.layout.addWidget(self.version_label)

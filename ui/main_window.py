@@ -1,12 +1,22 @@
+"""
+Main application window for the Pro Extractor desktop application.
+
+This module provides the primary UI window containing the sidebar navigation,
+search functionality, task list with pagination, and download management.
+It coordinates between the UI components, download workers, and history storage.
+"""
+
 import os
 import logging
 from core.worker import WorkerThread, InfoWorker, DownloadWorker
 from core.storage import HistoryManager
 from core.config import config
 from core.downloader import DesktopDownloader
-from core.constants import (DEFAULT_PAGE_SIZE, DEFAULT_MAX_CONCURRENT,
+from core.constants import (DEFAULT_PAGE_SIZE,
                                     QUEUE_WAITING_COLOR, QUEUE_ACTIVE_COLOR,
-                                    QUEUE_STATUS_STYLE)
+                                    QUEUE_STATUS_STYLE, THEME_CHECK_INTERVAL,
+                                    THUMBNAIL_DOWNLOAD_TIMEOUT, MIN_WINDOW_WIDTH,
+                                    MIN_WINDOW_HEIGHT, THUMBNAIL_EXTENSION, DownloadStatus)
 from ui.sidebar import Sidebar
 from ui.settings import SettingsPage
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -39,7 +49,7 @@ class ThumbnailWorker(QThread):
             if not task_id:
                 continue
 
-            thumb_path = os.path.join(self.thumb_dir, f"{task_id}.jpg")
+            thumb_path = os.path.join(self.thumb_dir, f"{task_id}{THUMBNAIL_EXTENSION}")
             if os.path.exists(thumb_path):
                 self.finished_one.emit(task_id, thumb_path)
                 continue
@@ -53,7 +63,7 @@ class ThumbnailWorker(QThread):
 
             if thumb_url:
                 try:
-                    resp = requests.get(thumb_url, timeout=5)
+                    resp = requests.get(thumb_url, timeout=THUMBNAIL_DOWNLOAD_TIMEOUT)
                     if resp.status_code == 200:
                         with open(thumb_path, 'wb') as f:
                             f.write(resp.content)
@@ -69,7 +79,7 @@ class MainWindow(QMainWindow):
     def __init__(self, tasks=None, thumb_dir=None):
         super().__init__()
         self.setWindowTitle("PRO EXTRACTOR")
-        self.setMinimumSize(1100, 700)
+        self.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -109,8 +119,7 @@ class MainWindow(QMainWindow):
         self.pending_task_ids = set()  # Track pending task IDs
         self.queued_task_ids = set()   # Track queued task IDs
 
-        self.max_concurrent = config.get(
-            'downloads.max_concurrent', DEFAULT_MAX_CONCURRENT)
+        self.max_concurrent = config.get('downloads.max_concurrent', 4)
         self.current_info = None
         self.running_info_workers = []  # Track active info workers to prevent crash
 
@@ -137,7 +146,7 @@ class MainWindow(QMainWindow):
         # Auto theme switch check
         self.theme_timer = QTimer(self)
         self.theme_timer.timeout.connect(self._check_theme)
-        self.theme_timer.start(5000)
+        self.theme_timer.start(THEME_CHECK_INTERVAL)
 
     def _reconcile_history_on_startup(self):
         """
@@ -146,7 +155,7 @@ class MainWindow(QMainWindow):
         the UI doesn't mislead users.
         """
         try:
-            interrupted_statuses = {"processing", "pending", "queued"}
+            interrupted_statuses = {DownloadStatus.PROCESSING.value, DownloadStatus.DOWNLOADING.value, DownloadStatus.QUEUED.value}
             updated_any = False
             for h in list(self.history_manager.get_all()):
                 task_id = h.get("task_id")
@@ -160,13 +169,13 @@ class MainWindow(QMainWindow):
                 file_path = h.get("file_path", "")
                 if file_path and os.path.exists(file_path):
                     self.history_manager.update_task(
-                        task_id, {"status": "completed"})
+                        task_id, {"status": DownloadStatus.COMPLETED.value})
                     updated_any = True
                     continue
 
                 # Otherwise mark as paused/interrupted.
                 self.history_manager.update_task(
-                    task_id, {"status": "paused", "error": "Interrupted (app closed)"})
+                    task_id, {"status": DownloadStatus.PAUSED.value, "error": "Interrupted (app closed)"})
                 updated_any = True
 
             if updated_any and hasattr(self.history_manager, "flush"):
@@ -652,7 +661,7 @@ class MainWindow(QMainWindow):
             # Delete thumbnail files not referenced by history.
             for name in os.listdir(thumb_dir_abs):
                 # Only delete files created by the app (uuid.jpg).
-                if not name.lower().endswith(".jpg"):
+                if not name.lower().endswith(f"{THUMBNAIL_EXTENSION}"):
                     continue
                 full = os.path.join(thumb_dir_abs, name)
                 if not os.path.isfile(full):
@@ -678,7 +687,7 @@ class MainWindow(QMainWindow):
     def _on_settings_changed(self):
         """Handle settings changes."""
         # Update max concurrent downloads
-        self.max_concurrent = config.get('downloads.max_concurrent', 3)
+        self.max_concurrent = config.get('downloads.max_concurrent', 4)
 
         # Refresh extraction options from new config
         self.options_card.refresh_settings()
@@ -694,9 +703,8 @@ class MainWindow(QMainWindow):
         # Re-apply theme if changed
         self._apply_theme()
 
-        # Update theme check interval if changed
-        self.theme_timer.setInterval(
-            config.get('ui.theme_check_interval', 5000))
+        # Update theme check interval
+        self.theme_timer.setInterval(THEME_CHECK_INTERVAL)
 
     def _apply_theme(self):
         self.setStyleSheet(get_stylesheet())
@@ -971,7 +979,7 @@ class MainWindow(QMainWindow):
                 continue
             if task_id in self._thumbnail_requested_task_ids:
                 continue
-            thumb_path = os.path.join(self.thumb_dir, f"{task_id}.jpg")
+            thumb_path = os.path.join(self.thumb_dir, f"{task_id}{THUMBNAIL_EXTENSION}")
             if os.path.exists(thumb_path):
                 self._thumbnail_requested_task_ids.add(task_id)
                 continue
@@ -1025,8 +1033,8 @@ class MainWindow(QMainWindow):
         if not url:
             return ""
         try:
-            path = os.path.join(self.thumb_dir, f"{task_id}.jpg")
-            response = requests.get(url, timeout=5)
+            path = os.path.join(self.thumb_dir, f"{task_id}{THUMBNAIL_EXTENSION}")
+            response = requests.get(url, timeout=THUMBNAIL_DOWNLOAD_TIMEOUT)
             with open(path, "wb") as f:
                 f.write(response.content)
             return path
@@ -1045,14 +1053,14 @@ class MainWindow(QMainWindow):
             self.pending_tasks.append((task_id, url, dest, options))
             self.pending_task_ids.add(task_id)
             self.logger.debug(f"Task {task_id} added to pending queue")
-            history_status = "pending"
+            history_status = DownloadStatus.DOWNLOADING.value
         else:
             # Hide in queue, don't show in UI yet
             self.queued_tasks.append((task_id, url, dest, options))
             self.queued_task_ids.add(task_id)
             self.logger.debug(
                 f"Task {task_id} added to hidden queue (position {len(self.queued_tasks)})")
-            history_status = "queued"
+            history_status = DownloadStatus.QUEUED.value
 
         # Don't add to UI layout directly - let pagination handle display
         # self.task_list_layout.insertWidget(0, task_widget)  # REMOVED
@@ -1322,7 +1330,7 @@ class MainWindow(QMainWindow):
             self.pending_tasks.append((task_id, url, dest, options))
             self.pending_task_ids.add(task_id)
             self.queued_task_ids.discard(task_id)
-            self.history_manager.update_task(task_id, {"status": "pending"})
+            self.history_manager.update_task(task_id, {"status": DownloadStatus.DOWNLOADING.value})
             widget = self.visible_widgets.get(task_id)
             if widget:
                 widget.set_status("Queued...")
@@ -1352,14 +1360,14 @@ class MainWindow(QMainWindow):
                 f"DEBUG: Updating widget {widget.task_id} to status: {status}")
 
         state_handlers = {
-            'completed': lambda: widget.set_finished(item.get("file_path", "")),
-            'failed': lambda: widget.set_error(item.get("error", "Failed")),
-            'cancelled': lambda: widget.set_error(item.get("error", "Failed")),
+            DownloadStatus.COMPLETED.value: lambda: widget.set_finished(item.get("file_path", "")),
+            DownloadStatus.FAILED.value: lambda: widget.set_error(item.get("error", "Failed")),
+            DownloadStatus.CANCELLED.value: lambda: widget.set_error(item.get("error", "Failed")),
             'skipped': lambda: widget.set_status("Skipped"),
-            'paused': lambda: widget.set_status("Paused"),
-            'processing': lambda: widget.set_status("Downloading..."),
-            'pending': lambda: widget.set_status("Queued..."),
-            'queued': lambda: widget.set_status("Waiting in queue...")
+            DownloadStatus.PAUSED.value: lambda: widget.set_status("Paused"),
+            DownloadStatus.PROCESSING.value: lambda: widget.set_status("Downloading..."),
+            DownloadStatus.DOWNLOADING.value: lambda: widget.set_status("Queued..."),
+            DownloadStatus.QUEUED.value: lambda: widget.set_status("Waiting in queue...")
         }
 
         handler = state_handlers.get(
@@ -1414,7 +1422,7 @@ class MainWindow(QMainWindow):
         if widget:
             widget.set_finished(path)
         self.history_manager.update_task(task_id, {
-            "status": "completed",
+            "status": DownloadStatus.COMPLETED.value,
             "file_path": path,
             "finished_at": str(os.path.basename(path))
         })
@@ -1439,12 +1447,12 @@ class MainWindow(QMainWindow):
         if err == "Cancelled":
             if widget:
                 widget.set_status("Paused")
-            self.history_manager.update_task(task_id, {"status": "paused"})
+            self.history_manager.update_task(task_id, {"status": DownloadStatus.PAUSED.value})
         else:
             if widget:
                 widget.set_error(err)
             self.history_manager.update_task(
-                task_id, {"status": "failed", "error": err})
+                task_id, {"status": DownloadStatus.FAILED.value, "error": err})
 
         # Debug: Log download error
         try:
@@ -1461,7 +1469,7 @@ class MainWindow(QMainWindow):
             self._refresh_task_in_current_page(task_id)
 
         # Check if auto-resume is enabled
-        auto_resume = config.get('downloads.auto_resume', False)
+        auto_resume = config.get('downloads.auto_resume', True)
         if auto_resume and err != "Cancelled":
             # Schedule auto-resume after a delay
             QTimer.singleShot(5000, lambda: self._auto_resume_task(task_id))
@@ -1471,10 +1479,10 @@ class MainWindow(QMainWindow):
         # Check if the task is still failed and auto-resume is still enabled
         item = next((h for h in self.history_manager.get_all()
                     if h.get('task_id') == task_id), None)
-        if not item or item.get("status") != "failed":
+        if not item or item.get("status") != DownloadStatus.FAILED.value:
             return
 
-        auto_resume = config.get('downloads.auto_resume', False)
+        auto_resume = config.get('downloads.auto_resume', True)
         if not auto_resume:
             return
 
@@ -1500,10 +1508,10 @@ class MainWindow(QMainWindow):
             if filter_name == "ALL":
                 is_visible = True
             elif filter_name == "COMPLETED":
-                is_visible = (status == "completed")
+                is_visible = (status == DownloadStatus.COMPLETED.value)
             elif filter_name == "ACTIVE":
                 is_visible = (
-                    status in ["processing", "pending", "queued", "paused"])
+                    status in [DownloadStatus.PROCESSING.value, DownloadStatus.DOWNLOADING.value, DownloadStatus.QUEUED.value, DownloadStatus.PAUSED.value])
 
             widget.setVisible(is_visible)
 
@@ -1511,7 +1519,7 @@ class MainWindow(QMainWindow):
         if task_id in self.active_workers:
             thread, worker = self.active_workers[task_id]
             worker.cancel()  # yt-dlp resume will handle the rest
-            self.history_manager.update_task(task_id, {"status": "paused"})
+            self.history_manager.update_task(task_id, {"status": DownloadStatus.PAUSED.value})
             # Update widget UI immediately so user sees the paused state
             widget = self.visible_widgets.get(task_id)
             if widget:
@@ -1567,7 +1575,7 @@ class MainWindow(QMainWindow):
                 (task_id, item["url"], item["dest"], opts))
             self.pending_task_ids.add(task_id)
             self.queued_task_ids.discard(task_id)
-            self.history_manager.update_task(task_id, {"status": "pending"})
+            self.history_manager.update_task(task_id, {"status": DownloadStatus.DOWNLOADING.value})
             if widget:
                 widget.set_status("Queued...")
         else:
@@ -1575,7 +1583,7 @@ class MainWindow(QMainWindow):
                 (task_id, item["url"], item["dest"], opts))
             self.queued_task_ids.add(task_id)
             self.pending_task_ids.discard(task_id)
-            self.history_manager.update_task(task_id, {"status": "queued"})
+            self.history_manager.update_task(task_id, {"status": DownloadStatus.QUEUED.value})
             if widget:
                 widget.set_status("Waiting in queue...")
 
@@ -1601,7 +1609,7 @@ class MainWindow(QMainWindow):
         """Retry all failed downloads in the history list."""
         # Get all failed items from history (O(n) but only once)
         failed_items = [h for h in self.history_manager.get_all()
-                        if h.get('status') in ('failed', 'cancelled')]
+                        if h.get('status') in (DownloadStatus.FAILED.value, DownloadStatus.CANCELLED.value)]
 
         # Retry each failed item using O(1) lookup
         for item in failed_items:
@@ -1611,7 +1619,7 @@ class MainWindow(QMainWindow):
         """Resume all unfinished downloads (paused, failed, cancelled)."""
         # Get all unfinished items from history
         unfinished_items = [h for h in self.history_manager.get_all()
-                            if h.get('status') in ('paused', 'failed', 'cancelled')]
+                            if h.get('status') in (DownloadStatus.PAUSED.value, DownloadStatus.FAILED.value, DownloadStatus.CANCELLED.value)]
 
         # Resume each unfinished item
         for item in unfinished_items:

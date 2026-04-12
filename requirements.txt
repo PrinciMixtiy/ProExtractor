@@ -4,3 +4,4 @@ darkdetect
 requests
 secretstorage
 cryptography
+Pillow

@@ -17,13 +17,14 @@ A modern desktop application for downloading YouTube videos and playlists with a
 - **FFmpeg Integration**: For high-quality video merging and audio extraction
 - **Configurable Filename Patterns**: Use tags like {title}, {id}, {author}, {duration}
 - **Retry Mechanism**: Automatic retries on failure with exponential backoff
+- **Browser Cookies**: Support for using browser cookies for authentication
 
 ## Architecture
 
 ### Core Components
 
 - **`main.py`**: Application entry point with FFmpeg dependency checking
-- **`core/constants.py`**: Centralized constants, enums (DownloadStatus, Theme, Quality), and configuration values
+- **`core/constants.py`**: Centralized constants, enums (DownloadStatus, Theme), and configuration values
 - **`core/downloader.py`**: Core download logic using yt-dlp with retry mechanism
 - **`core/worker.py`**: Thread workers (InfoWorker, DownloadWorker) for non-blocking operations
 - **`core/storage.py`**: History management with debounced JSON persistence
@@ -61,6 +62,9 @@ PySide6==6.11.0
 yt-dlp
 darkdetect
 requests
+secretstorage
+cryptography
+Pillow
 ```
 
 ### Installation Steps
@@ -68,7 +72,7 @@ requests
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
-   cd YoutubeDownloader/desktop
+   cd ProExtractor
    ```
 
 2. **Create and activate virtual environment**:
@@ -109,35 +113,13 @@ requests
    ffmpeg -version
    ```
 
-5. **Install AtomicParsley** (Recommended for MP4 thumbnails):
-
-    **On Ubuntu/Debian**:
-    ```bash
-    sudo apt update
-    sudo apt install atomicparsley
-    ```
-
-    **On macOS**:
-    ```bash
-    brew install atomicparsley
-    ```
-
-    **On Windows**:
-    - Download from official repository
-    - Add to system PATH
-
-    **Verify installation**:
-    ```bash
-    AtomicParsley --version
-    ```
-
 ## Running the Application
 
 ### Development Mode
 
 ```bash
-# Navigate to desktop directory
-cd desktop
+# Navigate to project directory
+cd ProExtractor
 
 # Activate virtual environment (if not already active)
 source venv/bin/activate  # Linux/macOS
@@ -163,11 +145,12 @@ The executable will be located in the `dist/` folder.
 
 ### Settings Tabs
 
-The application settings are organized into three tabs:
+The application settings are organized into four tabs:
 
 1. **General**: Default download folder, filename pattern, theme (Auto/Light/Dark), language
 2. **Downloads**: Concurrent downloads limit, retry attempts, default quality/format, subtitle options
-3. **Advanced**: FFmpeg path configuration, custom data directory
+3. **Authentication**: Browser cookie source for accessing restricted content, per-site cookie settings
+4. **Advanced**: FFmpeg path configuration, custom data and log directories
 
 ### Configuration File
 
@@ -186,11 +169,12 @@ The following environment variables can override configuration values:
 - `YOUTUBE_DOWNLOADER_DOWNLOADS_RETRIES_ON_FAILURE`: Override retry attempts
 - `YOUTUBE_DOWNLOADER_ADVANCED_FFMPEG_PATH`: Override FFmpeg executable path
 - `YOUTUBE_DOWNLOADER_PATHS_DATA_DIR`: Override data directory path
+- `YOUTUBE_DOWNLOADER_PATHS_LOG_DIR`: Override log directory path
 
 ### Default Directories
 
 - **Configuration**: `~/.config/pro-extractor/` (Linux/macOS) or `%APPDATA%/pro-extractor` (Windows)
-- **Data**: Application's `desktop/data/` directory (or custom path if configured)
+- **Data**: Application's `data/` directory (or custom path if configured)
 - **Thumbnails**: `~/Desktop/YoutubeThumbnails` (default, created at runtime)
 
 ## Troubleshooting
@@ -229,25 +213,29 @@ The following environment variables can override configuration values:
 ### Project Structure
 
 ```
-desktop/
+ProExtractor/
 ├── main.py              # Application entry point
 ├── requirements.txt     # Python dependencies
-├── styles.py           # Theme and styling system
-├── core/               # Core business logic
-│   ├── constants.py    # Constants and enums
-│   ├── config.py     # Configuration management
-│   ├── downloader.py   # Download engine with yt-dlp
-│   ├── worker.py       # Thread workers for async operations
-│   └── storage.py      # History persistence with debounced saves
-├── ui/                 # User interface
-│   ├── main_window.py  # Main application window
-│   ├── sidebar.py      # Navigation sidebar
-│   ├── settings.py     # Settings UI (General/Downloads/Advanced tabs)
-│   ├── widgets.py      # Custom UI components
-│   └── icons.py        # Icon management
-├── assets/             # Static assets
-├── data/               # Application data (history.json)
-└── resources/          # Additional resources
+├── styles.py            # Theme and styling system
+├── generate_build.py    # Build script for standalone executable
+├── core/                # Core business logic
+│   ├── __init__.py
+│   ├── constants.py     # Constants and enums
+│   ├── config.py        # Configuration management
+│   ├── downloader.py    # Download engine with yt-dlp
+│   ├── worker.py        # Thread workers for async operations
+│   ├── storage.py       # History persistence with debounced saves
+│   └── utils.py         # Shared utilities
+├── ui/                  # User interface
+│   ├── __init__.py
+│   ├── main_window.py   # Main application window
+│   ├── sidebar.py       # Navigation sidebar
+│   ├── settings.py      # Settings UI (General/Downloads/Advanced tabs)
+│   ├── widgets.py       # Custom UI components
+│   └── icons.py         # Icon management
+├── assets/              # Static assets (icons)
+├── data/                # Application data (history.json)
+└── resources/           # Additional resources
 ```
 
 
@@ -262,7 +250,7 @@ desktop/
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under GNU General Public License v3.0 - see the LICENSE file for details.
 
 ## Acknowledgments
 
@@ -270,3 +258,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **PySide6**: For the Qt6 Python bindings
 - **darkdetect**: For automatic theme detection
 - **FFmpeg**: For video processing capabilities
+- **secretstorage**: For secure credential storage
+- **cryptography**: For encryption
+- **Pillow**: Build icon files

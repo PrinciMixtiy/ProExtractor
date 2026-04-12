@@ -1,32 +1,31 @@
 """
-Persistent history storage manager for the desktop application.
+Persistent history storage manager for the Pro Extractor desktop application.
+
 This module provides the HistoryManager class, which handles loading, saving,
 and managing download task history in a JSON file. It implements debounced
 background saving to prevent UI freezes during rapid updates, such as when
 processing large playlists.
-Features:
-    - Automatic persistence of task history to JSON
-    - Thread-safe operations with locking
-    - Debounced saves to reduce disk I/O
-    - Immediate flush for destructive operations
-    - CRUD operations for task entries (add, update, delete)
-    - Bulk deletion by status
-    - Full history clearing
-The manager stores history in a JSON file located in the configured data
-directory (or default 'data' directory relative to the project root).
 """
 
 import json
 import os
+import sys
 import threading
 from datetime import datetime
 from typing import List, Dict, Any
 from core.config import config
 
-# Get absolute path to data directory (handles any working directory)
-_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(_MODULE_DIR)  # desktop/core -> desktop
-_DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, 'data')
+from .constants import DATA_DIR_NAME
+
+if getattr(sys, 'frozen', False):
+    # Running in PyInstaller bundle - use executable directory
+    _PROJECT_ROOT = os.path.dirname(sys.executable)
+else:
+    # Running in normal Python environment
+    _MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _PROJECT_ROOT = os.path.dirname(_MODULE_DIR)  # core -> project root
+
+_DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, DATA_DIR_NAME)
 
 class HistoryManager:
     """Manages persistent history for the desktop application."""
@@ -39,7 +38,9 @@ class HistoryManager:
         
         self.storage_path = storage_path
         # Ensure directory exists
-        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+        storage_dir = os.path.dirname(self.storage_path)
+        if storage_dir:
+            os.makedirs(storage_dir, exist_ok=True)
         self.history: List[Dict[str, Any]] = self._load()
         
         # Debounced background saving to avoid UI freezes.

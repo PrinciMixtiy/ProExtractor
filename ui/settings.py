@@ -1,5 +1,5 @@
 """
-Settings UI components for Video Downloader Desktop.
+Settings UI components for the Pro Extractor desktop application.
 
 This module provides the settings interface with General and Downloads sections,
 allowing users to configure application behavior.
@@ -19,7 +19,7 @@ from PySide6.QtCore import Signal, Qt
 from core.config import config
 from core.constants import (
     CONTENT_MARGIN, CARD_SPACING, BUTTON_HEIGHT,
-    INPUT_HEIGHT, FILENAME_TAGS
+    INPUT_HEIGHT, FILENAME_TAGS, MAX_CONCURRENT_LIMIT, MIN_CONCURRENT_LIMIT, Theme
 )
 
 
@@ -265,12 +265,12 @@ class GeneralSettings(QWidget):
     def load_settings(self):
         """Load general settings."""
         self.folder_path.setText(config.get('general.default_download_folder', ''))
-        self.filename_pattern.setText(config.get('general.default_filename_pattern', ''))
+        self.filename_pattern.setText(config.get('general.default_filename_pattern', '{title}'))
         
-        theme = config.get('general.theme', 'auto')
-        if theme == 'light':
+        theme = config.get('general.theme', Theme.AUTO.value)
+        if theme == Theme.LIGHT.value:
             self.theme_light.setChecked(True)
-        elif theme == 'dark':
+        elif theme == Theme.DARK.value:
             self.theme_dark.setChecked(True)
         else:
             self.theme_auto.setChecked(True)
@@ -284,9 +284,9 @@ class GeneralSettings(QWidget):
         config.set('general.default_download_folder', self.folder_path.text())
         config.set('general.default_filename_pattern', self.filename_pattern.text())
         
-        theme_map = {0: 'auto', 1: 'light', 2: 'dark'}
+        theme_map = {0: Theme.AUTO.value, 1: Theme.LIGHT.value, 2: Theme.DARK.value}
         theme_index = self.theme_buttons.checkedId()
-        config.set('general.theme', theme_map.get(theme_index, 'auto'))
+        config.set('general.theme', theme_map.get(theme_index, Theme.AUTO.value))
         
         language_map = {0: 'en', 1: 'es', 2: 'fr', 3: 'de', 4: 'zh'}
         config.set('general.language', language_map.get(self.language_combo.currentIndex(), 'en'))
@@ -311,7 +311,7 @@ class DownloadsSettings(QWidget):
         concurrent_layout = QFormLayout(concurrent_group)
         
         self.max_concurrent = QSpinBox()
-        self.max_concurrent.setRange(1, 10)
+        self.max_concurrent.setRange(MIN_CONCURRENT_LIMIT, MAX_CONCURRENT_LIMIT)
         self.max_concurrent.setValue(3)
         self.max_concurrent.setFixedHeight(INPUT_HEIGHT)
         concurrent_layout.addRow("Max Concurrent Downloads:", self.max_concurrent)
@@ -389,18 +389,18 @@ class DownloadsSettings(QWidget):
     
     def load_settings(self):
         """Load download settings."""
-        self.max_concurrent.setValue(config.get('downloads.max_concurrent', 3))
+        self.max_concurrent.setValue(config.get('downloads.max_concurrent', 4))
         
         retries = config.get('downloads.retries_on_failure', 5)
         retries_map = {1: 0, 3: 1, 5: 2, 10: 3, 999: 4}
         self.retries.setCurrentIndex(retries_map.get(retries, 2))
         
         self.auto_resume.setChecked(config.get('downloads.auto_resume', True))
-        self.embed_thumbnails.setChecked(config.get('downloads.embed_thumbnails', False))
+        self.embed_thumbnails.setChecked(config.get('downloads.embed_thumbnails', True))
         self.auto_subtitles.setChecked(config.get('downloads.auto_generate_subtitles', False))
         self.subtitle_language.setCurrentText(config.get('downloads.subtitle_language', 'en'))
         
-        quality = config.get('downloads.default_quality', 'highest')
+        quality = config.get('downloads.default_quality', '720p')
         quality_map = {'highest': 0, '1080p': 1, '720p': 2, '480p': 3, '360p': 4, 'lowest': 5}
         self.default_quality.setCurrentIndex(quality_map.get(quality, 0))
         
@@ -409,7 +409,6 @@ class DownloadsSettings(QWidget):
         self.default_format.setCurrentIndex(format_map.get(format_val, 0))
         
         self.timeout.setValue(config.get('downloads.timeout', 30))
-        # Removed: chunk_size setting
     
     def save_settings(self):
         """Save download settings."""
@@ -433,7 +432,6 @@ class DownloadsSettings(QWidget):
         config.set('downloads.default_format', format_val)
         
         config.set('downloads.timeout', self.timeout.value())
-        # Removed: chunk_size setting
 
 
 class AdvancedSettings(QWidget):
@@ -473,10 +471,35 @@ class AdvancedSettings(QWidget):
         storage_group = QGroupBox("Storage Paths")
         storage_layout = QFormLayout(storage_group)
         
+        # Data Directory
+        data_dir_layout = QHBoxLayout()
         self.data_dir = QLineEdit()
         self.data_dir.setFixedHeight(INPUT_HEIGHT)
         self.data_dir.setPlaceholderText("Default data directory")
-        storage_layout.addRow("Data Directory:", self.data_dir)
+        data_dir_layout.addWidget(self.data_dir)
+        
+        self.data_dir_browse = QPushButton("Browse")
+        self.data_dir_browse.setFixedHeight(BUTTON_HEIGHT)
+        self.data_dir_browse.setFixedWidth(80)
+        self.data_dir_browse.clicked.connect(self._browse_data_dir)
+        data_dir_layout.addWidget(self.data_dir_browse)
+        
+        storage_layout.addRow("Data Directory:", data_dir_layout)
+        
+        # Log Directory
+        log_dir_layout = QHBoxLayout()
+        self.log_dir = QLineEdit()
+        self.log_dir.setFixedHeight(INPUT_HEIGHT)
+        self.log_dir.setPlaceholderText("Default log directory")
+        log_dir_layout.addWidget(self.log_dir)
+        
+        self.log_dir_browse = QPushButton("Browse")
+        self.log_dir_browse.setFixedHeight(BUTTON_HEIGHT)
+        self.log_dir_browse.setFixedWidth(80)
+        self.log_dir_browse.clicked.connect(self._browse_log_dir)
+        log_dir_layout.addWidget(self.log_dir_browse)
+        
+        storage_layout.addRow("Log Directory:", log_dir_layout)
         
         layout.addWidget(storage_group)
         
@@ -496,21 +519,37 @@ class AdvancedSettings(QWidget):
             self.ffmpeg_path.setText(file_path)
             self.setting_changed.emit()
     
+    def _browse_data_dir(self):
+        """Browse for data directory."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Data Directory",
+            self.data_dir.text() or str(Path.home())
+        )
+        if folder:
+            self.data_dir.setText(folder)
+            self.setting_changed.emit()
+    
+    def _browse_log_dir(self):
+        """Browse for log directory."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Log Directory",
+            self.log_dir.text() or str(Path.home())
+        )
+        if folder:
+            self.log_dir.setText(folder)
+            self.setting_changed.emit()
+    
     def load_settings(self):
         """Load advanced settings."""
         self.ffmpeg_path.setText(config.get('advanced.ffmpeg_path', ''))
-        
-        # Removed: proxy, user_agent, debug_mode, log_level settings
-        
         self.data_dir.setText(config.get('paths.data_dir', ''))
+        self.log_dir.setText(config.get('paths.log_dir', ''))
     
     def save_settings(self):
         """Save advanced settings."""
         config.set('advanced.ffmpeg_path', self.ffmpeg_path.text())
-        
-        # Removed: proxy, user_agent, debug_mode, log_level settings
-        
         config.set('paths.data_dir', self.data_dir.text())
+        config.set('paths.log_dir', self.log_dir.text())
 
 
 class AuthenticationSettings(QWidget):
@@ -675,7 +714,7 @@ class AuthenticationSettings(QWidget):
     
     def load_settings(self):
         """Load authentication settings."""
-        browser_source = config.get('auth.browser_source', 'chrome')
+        browser_source = config.get('auth.browser_source', None)
         browser_map = {
             'chrome': 0,
             'firefox': 1,
@@ -684,10 +723,16 @@ class AuthenticationSettings(QWidget):
             'none': 4,
             '': 4
         }
-        self.browser_combo.setCurrentIndex(browser_map.get(browser_source.lower(), 0))
+
+        if browser_source:
+            key = browser_source.lower()
+        else:
+            key = ""
+
+        self.browser_combo.setCurrentIndex(browser_map.get(key, 0))
         
         # Load default cookies setting
-        self.default_cookies_checkbox.setChecked(config.get('auth.default_cookies', True))
+        self.default_cookies_checkbox.setChecked(config.get('auth.default_cookies', False))
         
         # Load domain overrides
         domain_overrides = config.get('auth.domain_overrides', {})

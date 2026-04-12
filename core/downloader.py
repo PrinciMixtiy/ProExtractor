@@ -1,5 +1,5 @@
 """
-Desktop YouTube/Video Downloader Module.
+Desktop Video Downloader Module.
 
 This module provides the core download functionality for a desktop YouTube
 downloader application using yt-dlp as the backend. It handles video and
@@ -30,7 +30,7 @@ import logging
 from typing import Any, Dict, Optional, Callable
 from yt_dlp import YoutubeDL
 from core.config import config
-from core.constants import DEFAULT_RETRIES, FRAGMENT_RETRIES, HTTP_TIMEOUT, SOCKET_TIMEOUT, RETRY_DELAY
+from core.constants import FRAGMENT_RETRIES, SOCKET_TIMEOUT
 from core.utils import sanitize_filename, extract_domain
 
 
@@ -84,9 +84,9 @@ class DesktopDownloader:
             return
         
         # Get auth configuration
-        browser_source = config.get('auth.browser_source', 'chrome')
+        browser_source = config.get('auth.browser_source', None)
         domain_overrides = config.get('auth.domain_overrides', {})
-        default_cookies = config.get('auth.default_cookies', True)
+        default_cookies = config.get('auth.default_cookies', False)
         
         # If browser source is not set or "none", don't use cookies
         if not browser_source or browser_source.lower() == 'none':
@@ -139,8 +139,7 @@ class DesktopDownloader:
             Formatted filename string
         """
         if not pattern:
-            pattern = config.get(
-                'general.default_filename_pattern', '{title} - {id}')
+            pattern = config.get('general.default_filename_pattern', '{title}')
 
         # Create mapping of available tags (only working tags)
         tag_mapping = {
@@ -203,9 +202,8 @@ class DesktopDownloader:
         """Get video information including available streams from an URL."""
         try:
             # Use configured timeout and retry values
-            timeout = config.get('downloads.timeout', HTTP_TIMEOUT)
-            retries = config.get(
-                'downloads.retries_on_failure', DEFAULT_RETRIES)
+            timeout = config.get('downloads.timeout', 30)
+            retries = config.get('downloads.retries_on_failure', 5)
 
             ydl_opts = {
                 'retries': retries,
@@ -362,9 +360,8 @@ class DesktopDownloader:
                             status_callback: Optional[Callable] = None,
                             cancellation_check: Optional[Callable] = None) -> str:
         """Download with automatic retry mechanism."""
-        max_retries = config.get(
-            'downloads.retries_on_failure', DEFAULT_RETRIES)
-        retry_delay = config.get('downloads.retry_delay', RETRY_DELAY)
+        max_retries = config.get('downloads.retries_on_failure', 5)
+        retry_delay = config.get('downloads.retry_delay', 1000)
 
         for attempt in range(max_retries + 1):
             try:
@@ -472,8 +469,7 @@ class DesktopDownloader:
                 outtmpl = os.path.join(
                     output_path, f'{filename_override}.%(ext)s')
             else:
-                pattern = config.get(
-                    'general.default_filename_pattern', '{title} - {id}')
+                pattern = config.get('general.default_filename_pattern', '{title}')
                 template = self._pattern_to_ydl_template(pattern)
                 outtmpl = os.path.join(output_path, f'{template}.%(ext)s')
 
@@ -489,7 +485,7 @@ class DesktopDownloader:
                 'postprocessor_hooks': [ydl_postprocessor_hook],
                 'retries': config.get('downloads.retries_on_failure', 5),
                 'fragment_retries': FRAGMENT_RETRIES,
-                'timeout': config.get('downloads.timeout', HTTP_TIMEOUT),
+                'timeout': config.get('downloads.timeout', 30),
                 'socket_timeout': SOCKET_TIMEOUT,
                 'merge_output_format': effective_merge_format if not audio_only else None,
                 'logger': SimpleDownloadLogger(),
@@ -569,8 +565,7 @@ class DesktopDownloader:
         if not url:
             return None
 
-        pattern = config.get(
-            'general.default_filename_pattern', '{title} - {id}')
+        pattern = config.get('general.default_filename_pattern', '{title}')
 
         if opts.get('filename_override'):
             base = opts['filename_override']
