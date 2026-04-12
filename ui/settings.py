@@ -699,13 +699,12 @@ class AuthenticationSettings(QWidget):
         domains_layout.addWidget(domains_label)
         
         # Create scroll area for many domains
-        from PySide6.QtWidgets import QScrollArea, QWidget as QScrollWidget
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        domains_scroll = QScrollArea()
+        domains_scroll.setWidgetResizable(True)
+        domains_scroll.setFrameShape(QScrollArea.NoFrame)
+        domains_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
-        scroll_widget = QScrollWidget()
+        scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
         scroll_layout.setSpacing(6)
         
@@ -723,8 +722,8 @@ class AuthenticationSettings(QWidget):
         scroll_layout.addLayout(self.custom_domains_layout)
         
         scroll_layout.addStretch()
-        scroll.setWidget(scroll_widget)
-        domains_layout.addWidget(scroll)
+        domains_scroll.setWidget(scroll_widget)
+        domains_layout.addWidget(domains_scroll)
         
         # Add custom domain button
         add_layout = QHBoxLayout()
