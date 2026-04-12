@@ -1,0 +1,544 @@
+"""
+Desktop YouTube/Video Downloader Module.
+
+This module provides the core download functionality for a desktop YouTube
+downloader application using yt-dlp as the backend. It handles video and
+audio downloads from YouTube and other supported platforms with support for
+various quality options, formats, and post-processing features.
+
+Classes:
+    DownloadCancelledException: Exception raised when download is cancelled by user.
+    DownloadFailedException: Exception raised when download fails after retries.
+    InvalidURLException: Exception raised when the provided URL is invalid.
+    DesktopDownloader: Main class containing all download logic and utilities.
+
+Features:
+    - Single video and playlist downloads
+    - Multiple quality options (highest, lowest, or specific resolution)
+    - Audio-only extraction (MP3, M4A, WAV, FLAC, OGG)
+    - Automatic retry mechanism with exponential backoff
+    - Progress and status callbacks for UI integration
+    - Subtitle downloading (manual and automatic)
+    - Thumbnail embedding
+    - Custom filename patterns with template variables
+    - FFmpeg encoder availability checking
+"""
+
+import os
+import time
+import logging
+from typing import Any, Dict, Optional, Callable
+from yt_dlp import YoutubeDL
+from desktop.core.config import config
+from desktop.core.constants import DEFAULT_RETRIES, FRAGMENT_RETRIES, HTTP_TIMEOUT, SOCKET_TIMEOUT, RETRY_DELAY
+from desktop.core.utils import sanitize_filename
+
+
+class DownloadCancelledException(Exception):
+    """Raised when download is cancelled by user."""
+    pass
+
+
+class DownloadFailedException(Exception):
+    """Raised when download fails."""
+    pass
+
+
+class InvalidURLException(Exception):
+    """Raised when URL is invalid."""
+    pass
+
+
+class DesktopDownloader:
+    """Core logic for downloading videos adapted for desktop usage."""
+    _encoder_cache = {}
+
+    def __init__(self):
+        # We don't need a default output path as it's provided per download
+        pass
+
+    def _has_ffmpeg_encoder(self, encoder_name: str) -> bool:
+        """Check if FFmpeg has a specific encoder available."""
+        if encoder_name in self._encoder_cache:
+            return self._encoder_cache[encoder_name]
+        import subprocess
+        try:
+            # Check for the encoder in the list of available encoders
+            result = subprocess.run(['ffmpeg', '-encoders'],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True,
+                                    check=True)
+            # Standard output of ffmpeg -encoders has lines like " S..... mov_text ..."
+            has_it = any(
+                f" {encoder_name} " in line for line in result.stdout.splitlines())
+            self._encoder_cache[encoder_name] = has_it
+            return has_it
+        except Exception:
+            # Fallback to False if ffmpeg check fails
+            return False
+
+    def _format_filename_pattern(self, pattern: str, info: Dict, original_url: str = '') -> str:
+        """Format filename pattern with video information.
+
+        Args:
+            pattern: Filename pattern with tags like {title}, {id}, etc.
+            info: Video information dictionary
+            original_url: Original video URL for ID extraction
+
+        Returns:
+            Formatted filename string
+        """
+        if not pattern:
+            pattern = config.get(
+                'general.default_filename_pattern', '{title} - {id}')
+
+        # Create mapping of available tags (only working tags)
+        tag_mapping = {
+            'title': sanitize_filename(info.get('title', 'Unknown')),
+            'id': sanitize_filename(info.get('id', info.get('display_id', self._extract_id_from_url(original_url)))),
+            'author': sanitize_filename(info.get('author', info.get('uploader', 'Unknown'))),
+            'duration': str(int(info.get('duration', info.get('length', 0)))) if info.get('duration') or info.get('length') else 'unknown'
+        }
+
+        # Replace tags in pattern
+        formatted = pattern
+        for tag, value in tag_mapping.items():
+            formatted = formatted.replace(f'{{{tag}}}', value)
+
+        # Ensure we don't have empty filename
+        if not formatted or formatted.isspace():
+            formatted = sanitize_filename(info.get('title', 'video'))
+
+        return formatted.strip()
+
+    def _extract_id_from_url(self, url: str) -> str:
+        """Extract video ID from YouTube URL."""
+        if not url:
+            return 'unknown'
+
+        import re
+        # Try to extract video ID from URL
+        patterns = [
+            r'(?:v=|/)([0-9A-Za-z_-]{11})',  # Standard YouTube URL
+            r'youtu\.be/([0-9A-Za-z_-]{11})',  # Short URL
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+
+        return 'unknown'
+
+    def _pattern_to_ydl_template(self, pattern: str) -> str:
+        """Convert our {tag} filename pattern to a native yt-dlp outtmpl template.
+
+        Using yt-dlp's own template system means:
+        - No separate extract_info pre-fetch is needed before downloading.
+        - yt-dlp applies per-OS filename sanitization automatically.
+        - %(title).100B caps the title at 100 bytes without mid-word cuts.
+        """
+        tag_map = {
+            '{title}':    '%(title).100B',
+            '{id}':       '%(id)s',
+            '{author}':   '%(uploader)s',
+            '{duration}': '%(duration)s',
+        }
+        template = pattern
+        for tag, field in tag_map.items():
+            template = template.replace(tag, field)
+        return template
+
+    def get_video_info(self, url: str) -> Dict:
+        """Get video information including available streams from an URL."""
+        try:
+            # Use configured timeout and retry values
+            timeout = config.get('downloads.timeout', HTTP_TIMEOUT)
+            retries = config.get(
+                'downloads.retries_on_failure', DEFAULT_RETRIES)
+
+            ydl_opts = {
+                'retries': retries,
+                'fragment_retries': FRAGMENT_RETRIES,
+                'timeout': timeout,
+                'socket_timeout': SOCKET_TIMEOUT,
+                'nocheckcertificate': False,
+                'extract_flat': 'in_playlist',
+                'ignoreerrors': True,
+                'noplaylist': False,
+                'yes_playlist': True,
+            }
+
+            browser_cookies = config.get('advanced.browser_cookies', 'chrome')
+            if browser_cookies:
+                ydl_opts['cookiesfrombrowser'] = (browser_cookies,)
+
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+                if 'list=' in url and info.get('_type') != 'playlist' and 'entries' not in info:
+                    try:
+                        list_id = url.split('list=')[1].split('&')[0]
+                        playlist_url = f"https://www.youtube.com/playlist?list={list_id}"
+                        info = ydl.extract_info(playlist_url, download=False)
+                    except Exception:
+                        pass
+
+                is_playlist = info.get(
+                    '_type') == 'playlist' or 'entries' in info
+
+                formats = []
+                for f in info.get("formats", []):
+                    if f.get("vcodec") != "none":
+                        height = f.get("height")
+                        if height and height not in [fmt["height"] for fmt in formats]:
+                            formats.append({
+                                "format_id": f.get("format_id"),
+                                "ext": f.get("ext"),
+                                "height": height,
+                                "filesize": f.get("filesize"),
+                                "note": f.get("format_note")
+                            })
+
+                formats.sort(key=lambda x: x["height"] or 0, reverse=True)
+
+                if is_playlist and not formats and info.get("entries"):
+                    try:
+                        first_entry = info["entries"][0]
+                        if not first_entry.get("formats"):
+                            first_video_url = first_entry['url'].split('&list=')[
+                                0]
+                            with YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl_entry:
+                                first_entry = ydl_entry.extract_info(
+                                    first_video_url, download=False)
+                                info["entries"][0] = first_entry
+
+                        for f in first_entry.get("formats", []):
+                            if f.get("vcodec") != "none":
+                                height = f.get("height")
+                                if height and height not in [fmt["height"] for fmt in formats]:
+                                    formats.append({
+                                        "format_id": f.get("format_id"),
+                                        "ext": f.get("ext"),
+                                        "height": height,
+                                        "filesize": f.get("filesize"),
+                                        "note": f.get("format_note")
+                                    })
+                        formats.sort(
+                            key=lambda x: x["height"] or 0, reverse=True)
+                    except Exception as e:
+                        logging.debug(
+                            f"Failed to extract formats from playlist entry: {e}")
+
+                if is_playlist and not formats:
+                    formats.append({
+                        "format_id": "playlist_highest",
+                        "ext": "mp4/m4a",
+                        "height": 1080,
+                        "filesize": None,
+                        "note": "Playlist (Automatic)"
+                    })
+
+                thumbnail = info.get("thumbnail")
+                if is_playlist and info.get("entries"):
+                    first_entry_thumb = info["entries"][0].get("thumbnail")
+                    if first_entry_thumb:
+                        thumbnail = first_entry_thumb
+
+                playlist_entries = []
+                if is_playlist and info.get("entries"):
+                    for entry in info.get("entries", []):
+                        if entry and entry.get("url"):
+                            playlist_entries.append({
+                                "id": entry.get("id"),
+                                "title": entry.get("title"),
+                                "url": entry.get("url"),
+                                "duration": entry.get("duration"),
+                                "thumbnail": entry.get("thumbnail"),
+                                "index": entry.get("playlist_index") or len(playlist_entries) + 1
+                            })
+
+                available_subtitles = set()
+
+                def extract_langs(info_dict):
+                    if info_dict.get('subtitles'):
+                        available_subtitles.update(
+                            info_dict['subtitles'].keys())
+                    if info_dict.get('automatic_captions'):
+                        for lang, formats in info_dict['automatic_captions'].items():
+                            if formats:
+                                url = formats[0].get('url', '')
+                                if 'tlang=' not in url:
+                                    available_subtitles.add(lang)
+
+                extract_langs(info)
+                if is_playlist and not available_subtitles and info.get("entries") and len(info["entries"]) > 0:
+                    extract_langs(info["entries"][0])
+                available_subtitles = sorted(list(available_subtitles))
+
+                return {
+                    "title": info.get("title"),
+                    "author": info.get("uploader") or info.get("playlist_uploader") or "Various",
+                    "length": info.get("duration"),
+                    "views": info.get("view_count") or info.get("playlist_count"),
+                    "description": info.get("description"),
+                    "thumbnail": thumbnail,
+                    "is_playlist": is_playlist,
+                    "playlist_entries": playlist_entries,
+                    "available_subtitles": available_subtitles,
+                    "available_streams": {
+                        "formats": formats
+                    }
+                }
+        except Exception as e:
+            raise InvalidURLException(f"Error fetching video info: {str(e)}")
+
+    def download_with_retry(self, url: str,
+                            output_path: str,
+                            quality: str = "highest",
+                            format: str = "mp4",
+                            audio_only: bool = False,
+                            embed_thumbnails: bool = False,
+                            auto_generate_subtitles: bool = False,
+                            subtitle_language: str = "en",
+                            filename_override: Optional[str] = None,
+                            force_overwrites: bool = False,
+                            progress_callback: Optional[Callable] = None,
+                            status_callback: Optional[Callable] = None,
+                            cancellation_check: Optional[Callable] = None) -> str:
+        """Download with automatic retry mechanism."""
+        max_retries = config.get(
+            'downloads.retries_on_failure', DEFAULT_RETRIES)
+        retry_delay = config.get('downloads.retry_delay', RETRY_DELAY)
+
+        for attempt in range(max_retries + 1):
+            try:
+                if attempt > 0:
+                    if status_callback:
+                        status_callback(
+                            f"Retrying... (attempt {attempt + 1}/{max_retries + 1})")
+                    time.sleep(retry_delay * attempt)  # Exponential backoff
+
+                return self.download(
+                    url, output_path, quality, format, audio_only, embed_thumbnails,
+                    auto_generate_subtitles, subtitle_language,
+                    filename_override, force_overwrites,
+                    progress_callback, status_callback, cancellation_check
+                )
+
+            except DownloadCancelledException:
+                raise  # Don't retry if user cancelled
+            except Exception as e:
+                if attempt == max_retries:
+                    raise DownloadFailedException(
+                        f"Download failed after {max_retries + 1} attempts: {str(e)}")
+
+                if status_callback:
+                    status_callback(f"Attempt {attempt + 1} failed: {str(e)}")
+
+                # Check if we should continue retrying
+                if cancellation_check and cancellation_check():
+                    raise DownloadCancelledException(
+                        "Download cancelled during retry")
+
+    def download(self, url: str,
+                 output_path: str,
+                 quality: str = "highest",
+                 format: str = "mp4",
+                 audio_only: bool = False,
+                 embed_thumbnails: bool = False,
+                 auto_generate_subtitles: bool = False,
+                 subtitle_language: str = "en",
+                 filename_override: Optional[str] = None,
+                 force_overwrites: bool = False,
+                 progress_callback: Optional[Callable] = None,
+                 status_callback: Optional[Callable] = None,
+                 cancellation_check: Optional[Callable] = None) -> str:
+        """Download video/playlist in specified quality directly to output_path."""
+        if not url or not isinstance(url, str):
+            raise InvalidURLException("Invalid or missing URL")
+        try:
+            def ydl_progress_hook(d):
+                if cancellation_check and cancellation_check():
+                    raise DownloadCancelledException(
+                        "Download cancelled by user")
+
+                if d['status'] == 'downloading':
+                    total = d.get('total_bytes') or d.get(
+                        'total_bytes_estimate')
+                    downloaded = d.get('downloaded_bytes', 0)
+                    speed = d.get('speed', 0)
+                    eta = d.get('eta', 0)
+
+                    if total:
+                        progress = round(downloaded / total * 100, 1)
+                        if progress_callback:
+                            progress_callback(progress, speed, eta)
+                    else:
+                        p_str = d.get('_percent_str', '0%').replace(
+                            '%', '').strip()
+                        try:
+                            p_val = float(p_str)
+                            if progress_callback:
+                                progress_callback(p_val, speed, eta)
+                        except ValueError:
+                            pass
+                elif d['status'] == 'finished':
+                    if progress_callback:
+                        progress_callback(100.0, 0, 0)
+                    if status_callback:
+                        status_callback("Processing...")
+
+            def ydl_postprocessor_hook(d):
+                """Separate hook for FFmpeg postprocessing stages."""
+                if cancellation_check and cancellation_check():
+                    raise DownloadCancelledException(
+                        "Download cancelled by user")
+                if d.get('status') == 'started':
+                    pp = d.get('postprocessor', '')
+                    if 'Audio' in pp or 'Extract' in pp:
+                        if status_callback:
+                            status_callback("Converting audio...")
+                    elif 'Embed' in pp or 'Thumbnail' in pp:
+                        if status_callback:
+                            status_callback("Embedding thumbnail...")
+                    elif 'Subtitle' in pp:
+                        if status_callback:
+                            status_callback("Embedding subtitles...")
+                    else:
+                        if status_callback:
+                            status_callback("Processing...")
+                    if progress_callback:
+                        progress_callback(100.0, 0, 0)
+
+            # Build output template — use yt-dlp's native template to avoid
+            # a separate extract_info pre-fetch before the actual download.
+            if filename_override:
+                outtmpl = os.path.join(
+                    output_path, f'{filename_override}.%(ext)s')
+            else:
+                pattern = config.get(
+                    'general.default_filename_pattern', '{title} - {id}')
+                template = self._pattern_to_ydl_template(pattern)
+                outtmpl = os.path.join(output_path, f'{template}.%(ext)s')
+
+            # Unified MP4 Strategy: Always use MP4 for video downloads for maximum compatibility.
+            # Audio-only downloads resolve to their specific codec (MP3/M4A/etc).
+            effective_merge_format = 'mp4' if not audio_only else format
+
+            options: Dict[str, Any] = {
+                'outtmpl': outtmpl,
+                'quiet': True,
+                'no_warnings': True,
+                'progress_hooks': [ydl_progress_hook],
+                'postprocessor_hooks': [ydl_postprocessor_hook],
+                'retries': config.get('downloads.retries_on_failure', 5),
+                'fragment_retries': FRAGMENT_RETRIES,
+                'timeout': config.get('downloads.timeout', HTTP_TIMEOUT),
+                'socket_timeout': SOCKET_TIMEOUT,
+                'merge_output_format': effective_merge_format if not audio_only else None,
+            }
+
+            browser_cookies = config.get('advanced.browser_cookies', 'chrome')
+            if browser_cookies:
+                options['cookiesfrombrowser'] = (browser_cookies,)
+
+            if force_overwrites:
+                # Ensure yt-dlp overwrites existing target files.
+                options['overwrites'] = True
+
+            postprocessors = []
+            if audio_only:
+                options['format'] = 'bestaudio/best'
+                # Resolve to a real codec — never pass "audio_only" as codec name
+                audio_format = format if format in (
+                    'mp3', 'm4a', 'wav', 'flac', 'ogg') else 'mp3'
+                postprocessors.append({
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': audio_format,
+                })
+            else:
+                # Extension-Agnostic Input: Allow high-res (4K/8K) WebM sources but merge to MP4.
+                if quality == "highest":
+                    options['format'] = 'bestvideo+bestaudio/best'
+                elif quality == "lowest":
+                    options['format'] = 'worstvideo+worstaudio/worst'
+                else:
+                    raw = str(quality).rstrip('p')
+                    if raw.isdigit():
+                        h = raw
+                        # Prioritize resolution over source extension
+                        options['format'] = (
+                            f'bestvideo[height<={h}]+bestaudio'
+                            f'/best[height<={h}]'
+                            f'/best'
+                        )
+                    else:
+                        options['format'] = 'bestvideo+bestaudio/best'
+
+            if embed_thumbnails:
+                options['writethumbnail'] = True
+                postprocessors.append(
+                    {'key': 'FFmpegThumbnailsConvertor', 'format': 'jpg'})
+                postprocessors.append({'key': 'FFmpegMetadata'})
+                postprocessors.append({
+                    'key': 'EmbedThumbnail',
+                    'already_have_thumbnail': False,
+                })
+
+            if auto_generate_subtitles:
+                options['writesubtitles'] = True
+                options['subtitleslangs'] = [subtitle_language]
+                options['subtitlesformat'] = 'srt'
+                options['writeautomaticsub'] = True
+                # Per user request: Always download separate subtitles, never embed them.
+
+            if postprocessors:
+                options['postprocessors'] = postprocessors
+
+            with YoutubeDL(options) as ydl:
+                info = ydl.extract_info(url)
+                actual_filepath = info.get('requested_downloads', [{}])[0].get(
+                    'filepath') or ydl.prepare_filename(info)
+                return os.path.abspath(actual_filepath)
+
+        except DownloadCancelledException:
+            raise
+        except Exception as e:
+            raise DownloadFailedException(f"Error downloading: {str(e)}")
+
+    def predict_download_filepath(self, url: str, output_path: str, opts: Optional[Dict[str, Any]] = None,
+                                  title_hint: str = '') -> Optional[str]:
+        """Predict the final output path locally without any network call."""
+        opts = dict(opts or {})
+        if not url:
+            return None
+
+        pattern = config.get(
+            'general.default_filename_pattern', '{title} - {id}')
+
+        if opts.get('filename_override'):
+            base = opts['filename_override']
+        else:
+            title = title_hint or 'video'
+            vid_id = self._extract_id_from_url(url)
+            info = {
+                'title': sanitize_filename(title),
+                'id': vid_id,
+                'uploader': '',
+                'duration': ''
+            }
+            base = self._format_filename_pattern(pattern, info, url)
+
+        audio_only = bool(opts.get('audio_only', False))
+        fmt = opts.get('format', 'mp4')
+
+        # Unified Strategy Prediction:
+        # Video is ALWAYS .mp4. Audio extractions resolve to codec (default .mp3).
+        if not audio_only:
+            ext = 'mp4'
+        else:
+            ext = fmt if fmt in ('mp3', 'm4a', 'wav', 'flac', 'ogg') else 'mp3'
+
+        return os.path.normpath(os.path.join(output_path, f'{base}.{ext}'))
