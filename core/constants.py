@@ -37,7 +37,7 @@ SOCKET_TIMEOUT: Final[int] = 20  # seconds
 
 # UI and Pagination Settings
 DEFAULT_PAGE_SIZE: Final[int] = 30
-MAX_CONCURRENT_LIMIT: Final[int] = 1
+MAX_CONCURRENT_LIMIT: Final[int] = 4
 MIN_CONCURRENT_LIMIT: Final[int] = 1
 
 # Queue Status Colors

@@ -1,14 +1,24 @@
 """
 Worker classes for background operations in the desktop application.
+
+This module uses multiprocessing for downloads to isolate yt-dlp,
+which is not thread-safe. InfoWorker can still use threads as it
+doesn't have the same thread-safety constraints.
 """
 
 from PySide6.QtCore import QObject, Signal, QThread
-from core.downloader import DesktopDownloader
+from multiprocessing import Process, Queue, Event
+import threading
+import queue as queue_module
 import traceback
 from typing import Optional
 
+from core.downloader import DesktopDownloader
+from core.worker_process import download_worker_process
+
+
 class InfoWorker(QObject):
-    """Worker for fetching video/playlist information."""
+    """Worker for fetching video/playlist information (thread-safe)."""
     finished = Signal(dict)
     error = Signal(str)
 
@@ -24,8 +34,14 @@ class InfoWorker(QObject):
         except Exception as e:
             self.error.emit(str(e))
 
+
 class DownloadWorker(QObject):
-    """Worker for downloading a single video/playlist."""
+    """
+    Worker for downloading a single video/playlist using process isolation.
+    
+    Spawns a separate process for yt-dlp to avoid thread-safety issues.
+    Uses a monitor thread to relay progress from the process via Queue.
+    """
     # progress: task_id, percentage, speed (bytes/s), eta (seconds)
     progress = Signal(str, float, float, float)
     # status: task_id, message
@@ -34,6 +50,8 @@ class DownloadWorker(QObject):
     finished = Signal(str, str)
     # error: task_id, error message
     error = Signal(str, str)
+    # cancelled: task_id
+    cancelled = Signal(str)
 
     def __init__(self, task_id: str, url: str, output_path: str, options: dict) -> None:
         super().__init__()
@@ -41,56 +59,103 @@ class DownloadWorker(QObject):
         self.url: str = url
         self.output_path: str = output_path
         self.options: dict = options
-        self.downloader: DesktopDownloader = DesktopDownloader()
-        self._is_cancelled: bool = False
+        
+        # Multiprocessing components
+        self._process: Optional[Process] = None
+        self._result_queue: Optional[Queue] = None
+        self._cancel_event: Optional[Event] = None
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._is_finished: bool = False
+
+    def start(self) -> None:
+        """Start the download process and monitor thread."""
+        # Create multiprocessing primitives
+        self._result_queue = Queue()
+        self._cancel_event = Event()
+        self._is_finished = False
+        
+        # Spawn the worker process
+        self._process = Process(
+            target=download_worker_process,
+            args=(
+                self.url,
+                self.output_path,
+                self.options,
+                self._result_queue,
+                self._cancel_event
+            )
+        )
+        self._process.start()
+        
+        # Start monitor thread to relay queue messages to Qt signals
+        self._monitor_thread = threading.Thread(target=self._monitor_queue, daemon=True)
+        self._monitor_thread.start()
 
     def cancel(self) -> None:
-        self._is_cancelled = True
+        """Signal graceful cancellation to the worker process."""
+        if self._cancel_event is not None:
+            self._cancel_event.set()
 
-    def _check_cancelled(self) -> bool:
-        return self._is_cancelled
+    def _monitor_queue(self) -> None:
+        """Monitor result queue and emit Qt signals."""
+        while not self._is_finished:
+            try:
+                # Use timeout to allow checking for process death
+                msg = self._result_queue.get(timeout=0.1)
+                msg_type = msg[0]
+                
+                if msg_type == 'progress':
+                    _, p, speed, eta = msg
+                    self.progress.emit(self.task_id, p, speed, eta)
+                elif msg_type == 'status':
+                    _, status_msg = msg
+                    self.status.emit(self.task_id, status_msg)
+                elif msg_type == 'finished':
+                    _, path = msg
+                    self._is_finished = True
+                    self.finished.emit(self.task_id, path)
+                    break
+                elif msg_type == 'error':
+                    _, error_msg = msg
+                    self._is_finished = True
+                    if "cancelled" in error_msg.lower():
+                        self.cancelled.emit(self.task_id)
+                    else:
+                        self.error.emit(self.task_id, error_msg)
+                    break
+                elif msg_type == 'cancelled':
+                    self._is_finished = True
+                    self.cancelled.emit(self.task_id)
+                    break
+                    
+            except queue_module.Empty:
+                # Check if process died unexpectedly
+                if self._process is not None and not self._process.is_alive():
+                    if not self._is_finished:
+                        self._is_finished = True
+                        self.error.emit(self.task_id, "Process terminated unexpectedly")
+                    break
 
-    def _progress_callback(self, p: float, speed: float, eta: float) -> None:
-        # PySide signals are typed (float). Some yt-dlp callbacks can pass `None`
-        # for speed/eta early in a download, which can crash with
-        # `_pythonToCppCopy: Cannot copy-convert NoneType to C++`.
-        safe_p = float(p) if p is not None else 0.0
-        safe_speed = float(speed) if speed is not None else 0.0
-        safe_eta = float(eta) if eta is not None else 0.0
+    def is_running(self) -> bool:
+        """Check if the worker process is still running."""
+        return self._process is not None and self._process.is_alive()
 
-        # Emit with task_id so the UI can update the correct row safely.
-        self.progress.emit(self.task_id, safe_p, safe_speed, safe_eta)
+    def join(self, timeout: Optional[float] = None) -> None:
+        """Wait for the process to finish."""
+        if self._process is not None:
+            self._process.join(timeout)
+        if self._monitor_thread is not None:
+            self._monitor_thread.join(timeout)
 
-    def _status_callback(self, msg: str) -> None:
-        self.status.emit(self.task_id, msg)
+    def terminate(self) -> None:
+        """Force terminate the worker process. Use cancel() for graceful shutdown."""
+        if self._process is not None and self._process.is_alive():
+            self._process.terminate()
+            self._process.join(1.0)
 
-    def run(self) -> None:
-        try:
-            result = self.downloader.download_with_retry(
-                url=self.url,
-                output_path=self.output_path,
-                quality=self.options.get('quality', 'highest'),
-                format=self.options.get('format', 'mp4'),
-                audio_only=self.options.get('audio_only', False),
-                embed_thumbnails=self.options.get('embed_thumbnails', False),
-                auto_generate_subtitles=self.options.get('auto_generate_subtitles', False),
-                subtitle_language=self.options.get('subtitle_language', 'en'),
-                filename_override=self.options.get('filename_override'),
-                force_overwrites=self.options.get('force_overwrites', False),
-                progress_callback=self._progress_callback,
-                status_callback=self._status_callback,
-                cancellation_check=self._check_cancelled
-            )
-            self.finished.emit(self.task_id, result)
-        except Exception as e:
-            if "cancelled" in str(e).lower():
-                self.error.emit(self.task_id, "Cancelled")
-            else:
-                self.error.emit(self.task_id, str(e))
-                traceback.print_exc()
 
 class WorkerThread(QThread):
-    """Helper thread to run workers."""
+    """Helper thread to run InfoWorker (not needed for DownloadWorker which uses Process)."""
     def __init__(self, worker: QObject) -> None:
         super().__init__()
         self.worker: QObject = worker
@@ -99,9 +164,6 @@ class WorkerThread(QThread):
         
         # Ensure cleanup
         if hasattr(self.worker, 'finished'):
-            # Ignore any signal args; QThread.quit() takes no params.
             self.worker.finished.connect(lambda *args: self.quit())
         if hasattr(self.worker, 'error'):
-            # Ignore any signal args; QThread.quit() takes no params.
             self.worker.error.connect(lambda *args: self.quit())
-        # We don't call self.worker.deleteLater here as the parent manages its lifecycle

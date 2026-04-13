@@ -1288,26 +1288,30 @@ class MainWindow(QMainWindow):
                     "Duplicate-file check failed: %s", e, exc_info=True)
 
             worker = DownloadWorker(task_id, url, dest, options)
-            thread = WorkerThread(worker)
 
-            # Connect directly (no lambdas) so Qt delivers updates to the main thread safely.
-            # Force queued delivery to the main/GUI thread for safety.
+            # Connect signals - DownloadWorker uses process isolation with monitor thread
             worker.progress.connect(
                 self._on_worker_progress, Qt.QueuedConnection)
             worker.status.connect(self._on_worker_status, Qt.QueuedConnection)
             worker.finished.connect(
                 self._on_download_finished, Qt.QueuedConnection)
             worker.error.connect(self._on_download_error, Qt.QueuedConnection)
+            worker.cancelled.connect(
+                self._on_download_cancelled, Qt.QueuedConnection)
 
-            # Use finished signal to safely cleanup
-            thread.finished.connect(
+            # Use finished/error/cancelled signals to safely cleanup
+            worker.finished.connect(
+                lambda tid=task_id: self._cleanup_worker(tid))
+            worker.error.connect(
+                lambda tid=task_id: self._cleanup_worker(tid))
+            worker.cancelled.connect(
                 lambda tid=task_id: self._cleanup_worker(tid))
 
-            self.active_workers[task_id] = (thread, worker)
+            self.active_workers[task_id] = worker
             self.active_task_ids.add(task_id)  # Add to performance tracking
             # Remove from pending tracking
             self.pending_task_ids.discard(task_id)
-            thread.start()
+            worker.start()
 
             self.history_manager.update_task(task_id, {"status": "processing"})
 
@@ -1437,14 +1441,13 @@ class MainWindow(QMainWindow):
 
     def _cleanup_worker(self, task_id):
         if task_id in self.active_workers:
-            thread, worker = self.active_workers.pop(task_id)
+            worker = self.active_workers.pop(task_id)
 
-            # Safer widget cleanup with proper Qt threading
+            # Safer cleanup for process-based worker
             try:
-                if thread and not thread.isFinished():
-                    thread.quit()
-                    thread.wait(1000)  # Wait up to 1 second
                 if worker:
+                    # Give process time to finish gracefully
+                    worker.join(timeout=2.0)
                     worker.deleteLater()
             except Exception as e:
                 self.logger.warning(f"Error cleaning up worker {task_id}: {e}")
@@ -1604,6 +1607,19 @@ class MainWindow(QMainWindow):
             # Schedule auto-resume after a delay
             QTimer.singleShot(5000, lambda: self._auto_resume_task(task_id))
 
+    def _on_download_cancelled(self, task_id):
+        """Handle download cancellation from worker process."""
+        widget = self.visible_widgets.get(task_id)
+        if widget:
+            widget.set_status("Paused")
+        self.history_manager.update_task(task_id, {"status": DownloadStatus.PAUSED.value})
+
+        # Re-ordering: keep active items on page 1.
+        if self.pagination_widget.current_page == 0:
+            self._refresh_task_in_current_page(task_id)
+        else:
+            self._refresh_task_in_current_page(task_id)
+
     def _auto_resume_task(self, task_id):
         """Automatically resume a failed download if auto-resume is enabled."""
         # Check if the task is still failed and auto-resume is still enabled
@@ -1647,8 +1663,8 @@ class MainWindow(QMainWindow):
 
     def _on_pause_task(self, task_id):
         if task_id in self.active_workers:
-            thread, worker = self.active_workers[task_id]
-            worker.cancel()  # yt-dlp resume will handle the rest
+            worker = self.active_workers[task_id]
+            worker.cancel()  # Signal graceful cancellation to process
             self.history_manager.update_task(task_id, {"status": DownloadStatus.PAUSED.value})
             # Update widget UI immediately so user sees the paused state
             widget = self.visible_widgets.get(task_id)
@@ -1758,7 +1774,7 @@ class MainWindow(QMainWindow):
     def _on_delete_task(self, task_id):
         # 1. Stop if running
         if task_id in self.active_workers:
-            thread, worker = self.active_workers[task_id]
+            worker = self.active_workers[task_id]
             worker.cancel()
 
         # 2. Remove from pending and queued
@@ -2002,7 +2018,7 @@ class MainWindow(QMainWindow):
 
         if mode == "all":
             # Cancel active downloads to match previous behavior ("all" can delete active too).
-            for task_id, (thread, worker) in list(self.active_workers.items()):
+            for task_id, worker in list(self.active_workers.items()):
                 try:
                     worker.cancel()
                 except Exception:
