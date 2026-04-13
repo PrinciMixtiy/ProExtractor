@@ -6,8 +6,25 @@ separate process via multiprocessing. It communicates back to the main
 process via multiprocessing.Queue.
 """
 
+import logging
 import sys
 import os
+
+def _setup_subprocess_logging(log_file_path=None):
+    """Setup logging for subprocess - writes to same file as main process if available."""
+    handlers = [logging.StreamHandler(sys.stdout)]
+    if log_file_path:
+        try:
+            handlers.append(logging.FileHandler(log_file_path, encoding='utf-8'))
+        except Exception:
+            pass  # Fall back to console only if file can't be opened
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        handlers=handlers
+    )
+    return logging.getLogger(__name__)
 
 # Add project root to path for imports in subprocess
 if __name__ == "__main__":
@@ -20,7 +37,7 @@ if __name__ == "__main__":
 from core.downloader import DesktopDownloader, DownloadCancelledException
 
 
-def download_worker_process(url, output_path, options, result_queue, cancel_event):
+def download_worker_process(url, output_path, options, result_queue, cancel_event, log_file_path=None):
     """
     Entry point for download worker process.
     
@@ -33,7 +50,10 @@ def download_worker_process(url, output_path, options, result_queue, cancel_even
         options: Dict with download options (quality, format, etc.)
         result_queue: multiprocessing.Queue for sending progress updates
         cancel_event: multiprocessing.Event for cancellation signal
+        log_file_path: Optional path to log file for subprocess logging
     """
+    # Setup logging for this subprocess
+    logger = _setup_subprocess_logging(log_file_path)
     
     def progress_callback(p, speed, eta):
         """Send progress update to main process."""
@@ -60,6 +80,7 @@ def download_worker_process(url, output_path, options, result_queue, cancel_even
     
     try:
         downloader = DesktopDownloader()
+        logger.info(f"Starting download: {url} -> {output_path}")
         
         result = downloader.download_with_retry(
             url=url,
@@ -79,15 +100,18 @@ def download_worker_process(url, output_path, options, result_queue, cancel_even
         
         try:
             result_queue.put(('finished', result))
+            logger.info(f"Download completed successfully: {result}")
         except:
             pass
             
     except DownloadCancelledException:
+        logger.info(f"Download cancelled: {url}")
         try:
             result_queue.put(('cancelled',))
         except:
             pass
     except Exception as e:
+        logger.error(f"Download failed for {url}: {e}")
         try:
             result_queue.put(('error', str(e)))
         except:

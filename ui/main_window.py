@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
         self.pagination_widget = PaginationWidget(page_size=DEFAULT_PAGE_SIZE)
         self.pagination_widget.page_changed.connect(self._load_history_page)
 
-        # Debug: Log pagination setup
+        # Log pagination setup
         self.logger.debug(
             f"Pagination widget initialized with page_size={DEFAULT_PAGE_SIZE}")
 
@@ -1231,7 +1231,7 @@ class MainWindow(QMainWindow):
             try:
                 self.logger.error(f"Error in smart refresh: {e}")
             except AttributeError:
-                print(f"ERROR: Error in smart refresh: {e}")
+                logging.getLogger(__name__).error(f"Error in smart refresh: {e}")
             # Fallback to safe refresh if needed
             pass
 
@@ -1489,8 +1489,8 @@ class MainWindow(QMainWindow):
             self.logger.debug(
                 f"Updating widget {widget.task_id} to status: {status}")
         except AttributeError:
-            print(
-                f"DEBUG: Updating widget {widget.task_id} to status: {status}")
+            logging.getLogger(__name__).debug(
+                f"Updating widget {widget.task_id} to status: {status}")
 
         state_handlers = {
             DownloadStatus.COMPLETED.value: lambda: widget.set_finished(item.get("file_path", "")),
@@ -1511,7 +1511,7 @@ class MainWindow(QMainWindow):
         try:
             self.logger.debug(f"Widget {widget.task_id} updated to {status}")
         except AttributeError:
-            print(f"DEBUG: Widget {widget.task_id} updated to {status}")
+            logging.getLogger(__name__).debug(f"Widget {widget.task_id} updated to {status}")
 
     def _safe_delete_widget(self, widget):
         """Safely delete widget with proper error handling."""
@@ -1560,11 +1560,8 @@ class MainWindow(QMainWindow):
             "finished_at": str(os.path.basename(path))
         })
 
-        # Debug: Log download completion
-        try:
-            self.logger.debug(f"Download finished: {task_id} -> {path}")
-        except AttributeError:
-            print(f"DEBUG: Download finished: {task_id} -> {path}")
+        # Log download completion
+        self.logger.info(f"Download finished: {task_id} -> {path}")
 
         # Re-ordering: keep active items on page 1.
         if self.pagination_widget.current_page == 0:
@@ -1587,11 +1584,8 @@ class MainWindow(QMainWindow):
             self.history_manager.update_task(
                 task_id, {"status": DownloadStatus.FAILED.value, "error": err})
 
-        # Debug: Log download error
-        try:
-            self.logger.debug(f"Download error: {task_id} -> {err}")
-        except AttributeError:
-            print(f"DEBUG: Download error: {task_id} -> {err}")
+        # Log download error
+        self.logger.error(f"Download error: {task_id} -> {err}")
 
         # Re-ordering: keep active items on page 1.
         if self.pagination_widget.current_page == 0:
@@ -1702,7 +1696,7 @@ class MainWindow(QMainWindow):
                     target) if os.path.isfile(target) else target
                 subprocess.run(["xdg-open", parent_dir])
         except Exception as e:
-            print(f"Error opening location: {e}")
+            self.logger.error(f"Error opening location: {e}")
 
     def _on_resume_task(self, task_id):
         # 1. Find in history
@@ -1839,13 +1833,13 @@ class MainWindow(QMainWindow):
         # Memory optimization: use get_count() instead of loading all items
         history_count = self.history_manager.get_count()
 
-        # Debug: Log history loading
+        # Log history loading
         self.logger.debug(f"Loading history: {history_count} items found")
 
         # Update pagination widget
         self.pagination_widget.update_pagination(history_count)
 
-        # Debug: Log pagination update
+        # Log pagination update
         self.logger.debug(
             f"Pagination updated: total_items={history_count}, total_pages={self.pagination_widget.total_pages}")
 
@@ -1963,7 +1957,8 @@ class MainWindow(QMainWindow):
                 import traceback
                 self.logger.error(f"Traceback: {traceback.format_exc()}")
             except AttributeError:
-                print(f"ERROR: Error loading history page {page_number}: {e}")
+                logging.getLogger(__name__).error(
+                    f"Error loading history page {page_number}: {e}")
                 import traceback
                 traceback.print_exc()
             # Ensure UI doesn't break completely

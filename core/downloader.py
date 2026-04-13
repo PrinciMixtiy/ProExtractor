@@ -42,16 +42,19 @@ class DownloadCancelledException(Exception):
 class SimpleDownloadLogger:
     """Custom logger that only shows download progress, not extractor details."""
     
+    def __init__(self):
+        self.logger = logging.getLogger(__name__ + ".yt_dlp")
+    
     def debug(self, msg: str) -> None:
         # Filter verbose extractor messages, only show download progress
         if '[download]' in msg and ('Downloading item' in msg or 'Downloading playlist' in msg):
-            print(msg)
+            self.logger.info(msg)
     
     def warning(self, msg: str) -> None:
-        pass
+        self.logger.warning(msg)
     
     def error(self, msg: str) -> None:
-        print(f"[error] {msg}")
+        self.logger.error(msg)
 
 
 class DownloadFailedException(Exception):

@@ -8,6 +8,7 @@ allowing users to configure application behavior.
 import os
 from pathlib import Path
 
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QRadioButton, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Signal, Qt
+
+logger = logging.getLogger(__name__)
 
 from core.config import config
 from core.constants import (
@@ -135,6 +138,7 @@ class SettingsPage(QWidget):
     
     def _apply_settings(self):
         """Apply all settings."""
+        logger.info("Applying settings changes")
         self.general_section.save_settings()
         self.downloads_section.save_settings()
         self.auth_section.save_settings()
@@ -142,6 +146,7 @@ class SettingsPage(QWidget):
         
         config.save()
         self.settings_changed.emit()
+        logger.info("Settings applied and saved successfully")
         # Apply button remains enabled for user convenience
         
         QMessageBox.information(self, "Settings", "Settings applied successfully!")
@@ -155,8 +160,10 @@ class SettingsPage(QWidget):
         )
         
         if reply == QMessageBox.Yes:
+            logger.info("Resetting all settings to defaults")
             config.reset()
             self._load_settings()
+            logger.info("Settings reset completed")
 
 
 class GeneralSettings(QWidget):

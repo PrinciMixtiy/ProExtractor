@@ -6,9 +6,12 @@ environment variable support, and JSON persistence.
 """
 
 import json
+import logging
 import os
 from typing import Dict, Any, Optional
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
@@ -39,9 +42,13 @@ class ConfigManager:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError):
-                pass
+                    config_data = json.load(f)
+                    logger.debug(f"Configuration loaded from {self.config_file}")
+                    return config_data
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in config file {self.config_file}: {e}")
+            except IOError as e:
+                logger.error(f"Failed to read config file {self.config_file}: {e}")
         
         # Return default configuration
         return self._get_default_config()
@@ -56,7 +63,7 @@ class ConfigManager:
                 "language": "en"
             },
             "downloads": {
-                "max_concurrent": 2,
+                "max_concurrent": 4,
                 "retries_on_failure": 5,
                 "retry_delay": 1000,
                 "auto_resume": True,
@@ -141,12 +148,14 @@ class ConfigManager:
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self._config, f, indent=2, default=str)
+            logger.debug(f"Configuration saved to {self.config_file}")
         except IOError as e:
-            print(f"Error saving config: {e}")
+            logger.error(f"Failed to save config to {self.config_file}: {e}")
     
     def reset(self) -> None:
         """Reset configuration to defaults."""
         self._config = self._get_default_config()
+        logger.info("Configuration reset to defaults")
         self.save()
     
     def get_all(self) -> Dict[str, Any]:

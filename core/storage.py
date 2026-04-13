@@ -8,12 +8,15 @@ processing large playlists.
 """
 
 import json
+import logging
 import os
 import sys
 import threading
 from datetime import datetime
 from typing import List, Dict, Any
 from core.config import config
+
+logger = logging.getLogger(__name__)
 
 from .constants import DATA_DIR_NAME
 
@@ -59,9 +62,10 @@ class HistoryManager:
             try:
                 with open(self.storage_path, 'w', encoding='utf-8') as f:
                     json.dump(self.history, f, indent=4, default=str)
+                logger.debug(f"History saved to {self.storage_path} ({len(self.history)} items)")
             except IOError as e:
                 # Don't crash the app if persistence fails.
-                print(f"Error saving history: {e}")
+                logger.error(f"Failed to save history to {self.storage_path}: {e}")
             finally:
                 # The timer is one-shot; clear it so future updates can schedule a new save.
                 self._save_timer = None
@@ -97,11 +101,18 @@ class HistoryManager:
     def _load(self) -> List[Dict[str, Any]]:
         """Load history from JSON file."""
         if not os.path.exists(self.storage_path):
+            logger.info(f"History file not found at {self.storage_path}, starting fresh")
             return []
         try:
             with open(self.storage_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
+                history_data = json.load(f)
+                logger.info(f"History loaded from {self.storage_path} ({len(history_data)} items)")
+                return history_data
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in history file {self.storage_path}: {e}")
+            return []
+        except IOError as e:
+            logger.error(f"Failed to read history file {self.storage_path}: {e}")
             return []
 
     def save(self):
@@ -150,7 +161,9 @@ class HistoryManager:
     def clear(self):
         """Clear all history."""
         with self._lock:
+            item_count = len(self.history)
             self.history = []
+            logger.info(f"History cleared ({item_count} items removed)")
             # Destructive action: flush immediately.
             self._schedule_save(immediate=True)
 

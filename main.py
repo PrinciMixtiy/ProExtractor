@@ -9,6 +9,7 @@ import sys
 import os
 import subprocess
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 from PySide6.QtGui import QIcon
 
@@ -26,8 +27,73 @@ from core.constants import APP_NAME, ORG_NAME, LOGS_DIR_NAME
 from core.utils import get_resource_path
 
 
+class DailyRotatingFileHandler(logging.FileHandler):
+    """Custom log handler that rotates daily with date-based filenames."""
+    
+    def __init__(self, log_dir: Path, backup_days: int = 7, encoding: str = 'utf-8'):
+        self.log_dir = Path(log_dir)
+        self.backup_days = backup_days
+        self.current_date = datetime.now().date()
+        self.current_log_file = self._get_log_file_path()
+        
+        # Ensure log directory exists
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Clean up old logs on initialization
+        self._cleanup_old_logs()
+        
+        super().__init__(self.current_log_file, mode='a', encoding=encoding)
+    
+    def _get_log_file_path(self) -> Path:
+        """Generate log file path with current date."""
+        date_str = self.current_date.strftime('%Y-%m-%d')
+        return self.log_dir / f"app-{date_str}.log"
+    
+    def _cleanup_old_logs(self):
+        """Remove log files older than backup_days."""
+        cutoff_date = datetime.now().date() - timedelta(days=self.backup_days)
+        
+        try:
+            for log_file in self.log_dir.glob('app-*.log'):
+                # Extract date from filename (app-YYYY-MM-DD.log)
+                try:
+                    date_str = log_file.stem.replace('app-', '')
+                    file_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    
+                    if file_date < cutoff_date:
+                        log_file.unlink()
+                        logging.info(f"Cleaned up old log file: {log_file.name}")
+                except (ValueError, OSError):
+                    # Skip files that don't match the expected format
+                    pass
+        except OSError:
+            # Don't crash if cleanup fails
+            pass
+    
+    def emit(self, record):
+        """Emit a log record, rotating if date has changed."""
+        now = datetime.now().date()
+        
+        # Check if we need to rotate
+        if now != self.current_date:
+            self.current_date = now
+            self.current_log_file = self._get_log_file_path()
+            
+            # Close old stream and open new one
+            if self.stream:
+                self.stream.close()
+            
+            self.baseFilename = str(self.current_log_file)
+            self.stream = self._open()
+            
+            # Clean up old logs on rotation
+            self._cleanup_old_logs()
+        
+        super().emit(record)
+
+
 def check_dependencies():
-    """Check for mandatory and optional native dependencies."""
+    """Check for required external dependencies."""
     results = {
         'ffmpeg': False
     }
@@ -62,19 +128,21 @@ def setup_logging():
             log_dir = Path.home() / ".config" / APP_NAME / LOGS_DIR_NAME
         
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "app.log"
     
-    # Configure logging
+    # Configure logging with daily rotation and 7-day retention
+    handler = DailyRotatingFileHandler(log_dir, backup_days=7, encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
+    
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
+    
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=[handler, console_handler]
     )
+    
     logging.info(f"--- Application Starting ({APP_NAME}) ---")
-    logging.info(f"Logs saved to: {log_file}")
+    logging.info(f"Logs directory: {log_dir} (7-day retention)")
 
 
 def main():

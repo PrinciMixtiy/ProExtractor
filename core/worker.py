@@ -8,10 +8,13 @@ doesn't have the same thread-safety constraints.
 
 from PySide6.QtCore import QObject, Signal, QThread
 from multiprocessing import Process, Queue, Event
+import logging
 import threading
 import queue as queue_module
 import traceback
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from core.downloader import DesktopDownloader
 from core.worker_process import download_worker_process
@@ -28,10 +31,13 @@ class InfoWorker(QObject):
         self.downloader: DesktopDownloader = DesktopDownloader()
 
     def run(self) -> None:
+        logger.info(f"Fetching video info for URL: {self.url}")
         try:
             info = self.downloader.get_video_info(self.url)
+            logger.info(f"Video info fetched successfully: {info.get('title', 'Unknown')}")
             self.finished.emit(info)
         except Exception as e:
+            logger.error(f"Failed to fetch video info for {self.url}: {e}")
             self.error.emit(str(e))
 
 
@@ -69,12 +75,20 @@ class DownloadWorker(QObject):
 
     def start(self) -> None:
         """Start the download process and monitor thread."""
+        logger.info(f"Starting download worker for task {self.task_id}: {self.url}")
         # Create multiprocessing primitives
         self._result_queue = Queue()
         self._cancel_event = Event()
         self._is_finished = False
         
-        # Spawn the worker process
+        # Get the log file path from the root logger's file handlers
+        log_file_path = None
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.FileHandler):
+                log_file_path = handler.baseFilename
+                break
+        
+        # Spawn the worker process with log file path for proper logging
         self._process = Process(
             target=download_worker_process,
             args=(
@@ -82,7 +96,8 @@ class DownloadWorker(QObject):
                 self.output_path,
                 self.options,
                 self._result_queue,
-                self._cancel_event
+                self._cancel_event,
+                log_file_path
             )
         )
         self._process.start()
@@ -93,6 +108,7 @@ class DownloadWorker(QObject):
 
     def cancel(self) -> None:
         """Signal graceful cancellation to the worker process."""
+        logger.info(f"Cancelling download worker for task {self.task_id}")
         if self._cancel_event is not None:
             self._cancel_event.set()
 
@@ -109,22 +125,27 @@ class DownloadWorker(QObject):
                     self.progress.emit(self.task_id, p, speed, eta)
                 elif msg_type == 'status':
                     _, status_msg = msg
+                    logger.debug(f"Task {self.task_id} status: {status_msg}")
                     self.status.emit(self.task_id, status_msg)
                 elif msg_type == 'finished':
                     _, path = msg
                     self._is_finished = True
+                    logger.info(f"Task {self.task_id} finished successfully: {path}")
                     self.finished.emit(self.task_id, path)
                     break
                 elif msg_type == 'error':
                     _, error_msg = msg
                     self._is_finished = True
                     if "cancelled" in error_msg.lower():
+                        logger.info(f"Task {self.task_id} was cancelled")
                         self.cancelled.emit(self.task_id)
                     else:
+                        logger.error(f"Task {self.task_id} failed: {error_msg}")
                         self.error.emit(self.task_id, error_msg)
                     break
                 elif msg_type == 'cancelled':
                     self._is_finished = True
+                    logger.info(f"Task {self.task_id} was cancelled")
                     self.cancelled.emit(self.task_id)
                     break
                     
@@ -133,6 +154,7 @@ class DownloadWorker(QObject):
                 if self._process is not None and not self._process.is_alive():
                     if not self._is_finished:
                         self._is_finished = True
+                        logger.error(f"Task {self.task_id} process terminated unexpectedly")
                         self.error.emit(self.task_id, "Process terminated unexpectedly")
                     break
 
@@ -149,6 +171,7 @@ class DownloadWorker(QObject):
 
     def terminate(self) -> None:
         """Force terminate the worker process. Use cancel() for graceful shutdown."""
+        logger.warning(f"Force terminating task {self.task_id}")
         if self._process is not None and self._process.is_alive():
             self._process.terminate()
             self._process.join(1.0)
