@@ -255,6 +255,9 @@ class ThumbnailLabel(QLabel):
 
     def load_from_url(self, url: str):
         if not url:
+            self._pixmap = None
+            self.setText("Waiting for URL...")
+            self.update()
             return
         try:
             response = requests.get(url, timeout=THUMBNAIL_DOWNLOAD_TIMEOUT)
@@ -843,7 +846,12 @@ class TaskItem(QFrame):
         self.title_label.setText(elided)
         meta_layout.addWidget(self.title_label)
         
-        self.source_label = QLabel(source if source else "Source unknown")
+        # Limit URL length to prevent UI overflow
+        MAX_URL_LENGTH = 50
+        display_source = source if source else "Source unknown"
+        if len(display_source) > MAX_URL_LENGTH:
+            display_source = display_source[:MAX_URL_LENGTH - 3] + "..."
+        self.source_label = QLabel(display_source)
         self.source_label.setObjectName("ItemSubtitle")
         # Remove hard-coded color - will use stylesheet
         self.source_label.setStyleSheet("font-size: 9px;")

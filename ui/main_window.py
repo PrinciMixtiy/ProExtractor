@@ -771,37 +771,6 @@ class MainWindow(QMainWindow):
         if not url:
             return
 
-        import urllib.parse
-        parsed = urllib.parse.urlparse(url)
-        query = urllib.parse.parse_qs(parsed.query)
-
-        has_video = 'v' in query or 'youtu.be/' in url.lower()
-        has_playlist = 'list' in query
-
-        # Check if URL has both video ID and playlist ID
-        if has_video and has_playlist:
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Playlist Detected")
-            msg.setText(
-                "This URL contains both a specific video and a playlist.")
-            msg.setInformativeText("What would you like to extract?")
-
-            btn_playlist = msg.addButton(
-                "Full Playlist", QMessageBox.ActionRole)
-            btn_video = msg.addButton("Single Video", QMessageBox.ActionRole)
-            msg.setStandardButtons(QMessageBox.Cancel)
-
-            msg.exec()
-
-            if msg.clickedButton() == msg.button(QMessageBox.Cancel):
-                return
-            elif msg.clickedButton() == btn_video:
-                del query['list']
-                parsed = parsed._replace(
-                    query=urllib.parse.urlencode(query, doseq=True))
-                url = urllib.parse.urlunparse(parsed)
-                self.url_input.setText(url)
-
         self.analyze_btn.setEnabled(False)
         # Store original text and show spinning retry icon
         self._analyze_btn_original_text = "ANALYZE"
@@ -836,6 +805,43 @@ class MainWindow(QMainWindow):
         self.analyze_btn.setEnabled(True)
         self.analyze_btn.setText(self._analyze_btn_original_text)
         self.current_info = info
+
+        # Check if user might want single video instead of playlist
+        if info.get("is_playlist") and info.get("playlist_entries"):
+            url = self.url_input.text().strip()
+            import urllib.parse
+            parsed = urllib.parse.urlparse(url)
+
+            # Check if URL looks like a single video (has path or query suggesting single item)
+            # but backend detected it as a playlist
+            looks_like_single = (
+                parsed.path.strip("/") or  # Has a path component
+                parsed.query  # Has query params
+            )
+
+            # For URLs that look like single items but are playlists, offer choice
+            if looks_like_single and len(info.get("playlist_entries", [])) > 1:
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Playlist Detected")
+                msg.setText(f"This URL contains a playlist with {len(info['playlist_entries'])} items.")
+                msg.setInformativeText("What would you like to extract?")
+
+                btn_playlist = msg.addButton(
+                    "Full Playlist", QMessageBox.ActionRole)
+                btn_video = msg.addButton("First Video Only", QMessageBox.ActionRole)
+                msg.setStandardButtons(QMessageBox.Cancel)
+
+                msg.exec()
+
+                if msg.clickedButton() == msg.button(QMessageBox.Cancel):
+                    return
+                elif msg.clickedButton() == btn_video:
+                    # Convert to single video by keeping only first entry
+                    first_entry = info["playlist_entries"][0]
+                    info["is_playlist"] = False
+                    info["playlist_entries"] = []
+                    info["title"] = first_entry.get("title", info.get("title"))
+                    self.url_input.setText(first_entry.get("url", url))
 
         self.video_card.update_info(info)
         self.options_card.update_streams(info.get("available_streams", {}))
@@ -889,6 +895,40 @@ class MainWindow(QMainWindow):
                 widget = self.playlist_layout.itemAt(i).widget()
                 if isinstance(widget, PlaylistItemWidget):
                     widget.set_selected(selected)
+
+    def _create_playlist_titles_file(self, output_path: str, playlist_title: str, titles: list) -> str:
+        """Create a text file containing playlist video titles in order.
+
+        Args:
+            output_path: Directory where the file should be saved
+            playlist_title: Title of the playlist (used for filename)
+            titles: List of video titles in order
+
+        Returns:
+            Path to the created file
+        """
+        from core.utils import sanitize_filename
+
+        safe_playlist_title = sanitize_filename(playlist_title or "Playlist")
+        filename = f"{safe_playlist_title} - Titles.txt"
+        filepath = os.path.join(output_path, filename)
+
+        # Handle duplicate filenames
+        counter = 1
+        base_filepath = filepath
+        while os.path.exists(filepath):
+            filename = f"{safe_playlist_title} - Titles ({counter}).txt"
+            filepath = os.path.join(output_path, filename)
+            counter += 1
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(f"Playlist: {playlist_title}\n")
+            f.write(f"Total videos: {len(titles)}\n")
+            f.write("=" * 50 + "\n\n")
+            for i, title in enumerate(titles, 1):
+                f.write(f"{i}. {title}\n")
+
+        return filepath
 
     @Slot(str)
     def _on_info_error(self, err):
@@ -949,6 +989,16 @@ class MainWindow(QMainWindow):
                     thumb_url = f"https://img.youtube.com/vi/{m.group(1)}/mqdefault.jpg"
             tasks_to_add.append((self.url_input.text().strip(), self.current_info.get(
                 "title", "Unknown Video"), thumb_url))
+
+        # Create playlist titles file for playlist downloads
+        if self.current_info.get("is_playlist") and tasks_to_add:
+            playlist_title = self.current_info.get("title", "Playlist")
+            titles = [title for _, title, _ in tasks_to_add]
+            try:
+                titles_file_path = self._create_playlist_titles_file(dest, playlist_title, titles)
+                self.logger.info(f"Created playlist titles file: {titles_file_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to create playlist titles file: {e}")
 
         if not tasks_to_add:
             QMessageBox.warning(self, "No Selection",
