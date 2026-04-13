@@ -56,7 +56,7 @@ class ConfigManager:
                 "language": "en"
             },
             "downloads": {
-                "max_concurrent": 4,
+                "max_concurrent": 1,
                 "retries_on_failure": 5,
                 "retry_delay": 1000,
                 "auto_resume": True,

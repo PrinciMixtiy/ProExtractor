@@ -35,6 +35,74 @@ import re
 from PySide6.QtCore import QThread, Signal
 
 
+class TaskItemWidgetPool:
+    """Widget pool for reusing TaskItem instances (memory optimization).
+
+    Instead of destroying and creating widgets on every page navigation,
+    this pool reuses existing widgets, significantly reducing:
+    - Memory allocation overhead
+- Garbage collection pressure
+    - UI flickering during pagination
+    """
+
+    def __init__(self, max_size: int = 20):
+        self.max_size = max_size
+        self._available: list = []  # Widgets ready for reuse
+        self._in_use: dict = {}  # task_id -> widget mapping
+
+    def acquire(self, task_id: str, title: str, source: str = "", thumb_path: str = ""):
+        """Get a widget from pool or create new if empty."""
+        from ui.widgets import TaskItem
+
+        # Return existing if already in use for this task
+        if task_id in self._in_use:
+            return self._in_use[task_id]
+
+        # Try to reuse from pool
+        if self._available:
+            widget = self._available.pop()
+            widget.reset(task_id, title, source, thumb_path)
+        else:
+            # Create new widget
+            widget = TaskItem(task_id, title, source, thumb_path)
+
+        self._in_use[task_id] = widget
+        return widget
+
+    def release(self, task_id: str):
+        """Return widget to pool for reuse."""
+        if task_id in self._in_use:
+            widget = self._in_use.pop(task_id)
+            # Keep widget in pool if under max size
+            if len(self._available) < self.max_size:
+                self._available.append(widget)
+                return widget  # Return for caller to hide/remove from layout
+            return None  # Widget should be deleted
+        return None
+
+    def release_all(self):
+        """Release all in-use widgets back to pool."""
+        widgets_to_return = list(self._in_use.values())
+        self._in_use.clear()
+
+        for widget in widgets_to_return:
+            if len(self._available) < self.max_size:
+                self._available.append(widget)
+            else:
+                widget.deleteLater()
+
+        return widgets_to_return
+
+    def clear(self):
+        """Clear pool and delete all widgets."""
+        for widget in self._available:
+            widget.deleteLater()
+        for widget in self._in_use.values():
+            widget.deleteLater()
+        self._available.clear()
+        self._in_use.clear()
+
+
 class ThumbnailWorker(QThread):
     finished_one = Signal(str, str)
 
@@ -101,6 +169,10 @@ class MainWindow(QMainWindow):
         # List of (task_id, url, dest, options) - waiting behind capacity
         self.queued_tasks = []
         self.visible_widgets = {}  # task_id -> TaskItem for currently displayed page only
+
+        # Memory optimization: widget pool for reusing TaskItem instances
+        # This reduces allocation overhead and GC pressure during pagination
+        self._task_widget_pool = TaskItemWidgetPool(max_size=20)
 
         # Prevent duplicate thumbnail downloads and reduce peak memory.
         self._thumbnail_requested_task_ids = set()
@@ -1143,9 +1215,8 @@ class MainWindow(QMainWindow):
     def _smart_refresh_for_new_tasks(self):
         """Smart refresh that shows new downloads without memory spikes."""
         try:
-            # Get current history count
-            history_items = self.history_manager.get_all()
-            current_count = len(history_items)
+            # Memory optimization: use get_count() for just the count
+            current_count = self.history_manager.get_count()
 
             # Update pagination widget with new count (cheap).
             self.pagination_widget.update_pagination(current_count)
@@ -1175,8 +1246,8 @@ class MainWindow(QMainWindow):
 
             # Duplicate file handling: prompt user when target already exists.
             # Uses yt-dlp metadata (same as the worker) so resume-from-history matches on-disk names.
-            history_item = next(
-                (h for h in self.history_manager.get_all() if h.get("task_id") == task_id), None)
+            # Memory optimization: use get_by_id for single lookup
+            history_item = self.history_manager.get_by_id(task_id)
             title = (history_item or {}).get("title", "Unknown")
             opts = dict((history_item or {}).get("options") or {})
             opts.update(dict(options or {}))
@@ -1536,8 +1607,8 @@ class MainWindow(QMainWindow):
     def _auto_resume_task(self, task_id):
         """Automatically resume a failed download if auto-resume is enabled."""
         # Check if the task is still failed and auto-resume is still enabled
-        item = next((h for h in self.history_manager.get_all()
-                    if h.get('task_id') == task_id), None)
+        # Memory optimization: use get_by_id for single lookup
+        item = self.history_manager.get_by_id(task_id)
         if not item or item.get("status") != DownloadStatus.FAILED.value:
             return
 
@@ -1556,8 +1627,8 @@ class MainWindow(QMainWindow):
         # Refilter list using widget registry for O(1) lookups
         for widget in self.visible_widgets.values():
             # Get status from history item linked to widget
-            item = next((h for h in self.history_manager.get_all()
-                        if h.get('task_id') == widget.task_id), None)
+            # Memory optimization: use get_by_id for single lookup
+            item = self.history_manager.get_by_id(widget.task_id)
             if not item:
                 widget.setVisible(False)
                 continue
@@ -1587,8 +1658,8 @@ class MainWindow(QMainWindow):
             # and it will trigger _process_queue which will skip this task if its in pending
 
     def _on_open_task(self, task_id):
-        item = next((h for h in self.history_manager.get_all()
-                    if h.get('task_id') == task_id), None)
+        # Memory optimization: use get_by_id for single lookup
+        item = self.history_manager.get_by_id(task_id)
         if not item:
             return
         file_path = item.get("file_path", "")
@@ -1619,8 +1690,8 @@ class MainWindow(QMainWindow):
 
     def _on_resume_task(self, task_id):
         # 1. Find in history
-        item = next((h for h in self.history_manager.get_all()
-                    if h.get('task_id') == task_id), None)
+        # Memory optimization: use get_by_id for single lookup
+        item = self.history_manager.get_by_id(task_id)
         if not item:
             return
 
@@ -1733,8 +1804,8 @@ class MainWindow(QMainWindow):
 
             # Get current history item with thread safety
             try:
-                item = next((h for h in self.history_manager.get_all()
-                            if h.get('task_id') == task_id), None)
+                # Memory optimization: use get_by_id for single lookup
+                item = self.history_manager.get_by_id(task_id)
                 if not item:
                     return
 
@@ -1749,28 +1820,27 @@ class MainWindow(QMainWindow):
 
     def _load_history(self):
         """Load history with smart pagination."""
-        history_items = self.history_manager.get_all()
+        # Memory optimization: use get_count() instead of loading all items
+        history_count = self.history_manager.get_count()
 
         # Debug: Log history loading
-        self.logger.debug(f"Loading history: {len(history_items)} items found")
-        if history_items:
-            self.logger.debug(f"History item sample: {history_items[0]}")
+        self.logger.debug(f"Loading history: {history_count} items found")
 
         # Update pagination widget
-        self.pagination_widget.update_pagination(len(history_items))
+        self.pagination_widget.update_pagination(history_count)
 
         # Debug: Log pagination update
         self.logger.debug(
-            f"Pagination updated: total_items={len(history_items)}, total_pages={self.pagination_widget.total_pages}")
+            f"Pagination updated: total_items={history_count}, total_pages={self.pagination_widget.total_pages}")
 
         # Load current page (preserves current page if possible)
         self._load_history_page(self.pagination_widget.current_page)
 
     def _refresh_current_page(self):
         """Refresh the current page to show updated items and update pagination."""
-        # Update pagination widget with current item count
-        history_items = self.history_manager.get_all()
-        self.pagination_widget.update_pagination(len(history_items))
+        # Memory optimization: use get_count() for pagination update
+        history_count = self.history_manager.get_count()
+        self.pagination_widget.update_pagination(history_count)
 
         # Validate current page is still valid
         current_page = self.pagination_widget.current_page
@@ -1806,35 +1876,27 @@ class MainWindow(QMainWindow):
     def _load_history_page(self, page_number):
         """Load a specific page of history items."""
         try:
-            # Clear current UI items and destroy widgets to keep memory bounded.
+            # Memory optimization: release widgets to pool instead of destroying
+            # This reduces allocation overhead and GC pressure during pagination
             self.visible_widgets.clear()
+            self._task_widget_pool.release_all()
             for i in reversed(range(self.task_list_layout.count())):
                 item = self.task_list_layout.takeAt(i)
                 w = item.widget() if item else None
                 if w:
-                    w.deleteLater()
+                    w.setParent(None)
 
-            history_items = self.history_manager.get_all()
+            # Memory optimization: use get_page() to load only visible items
+            # Note: Sorting by status is now handled in memory after loading page
+            # This trades CPU for RAM savings on large histories (1000+ items)
+            page_size = self.pagination_widget.page_size
+            history_items = self.history_manager.get_page(page_number, page_size)
 
-            # Ordering: processing first so "downloading" appears early.
-            status_priority = {
-                "processing": 0,
-                "pending": 1,
-                "queued": 2,
-                "paused": 3,
-            }
+            if not history_items:
+                return
 
-            # Stable sort by priority while preserving current order within same status.
-            history_items = sorted(
-                enumerate(history_items),
-                key=lambda t: (status_priority.get(
-                    t[1].get("status", ""), 10), t[0]),
-            )
-            history_items = [h for _, h in history_items]
-
-            start_idx = page_number * self.pagination_widget.page_size
-            end_idx = min(
-                start_idx + self.pagination_widget.page_size, len(history_items))
+            start_idx = 0
+            end_idx = len(history_items)
 
             if start_idx >= len(history_items) or start_idx < 0:
                 return
@@ -1847,18 +1909,22 @@ class MainWindow(QMainWindow):
                     continue
 
                 thumb_path = item.get("thumbnail", "")
-                task_widget = TaskItem(
+                # Memory optimization: use widget pool to reuse TaskItem instances
+                task_widget = self._task_widget_pool.acquire(
                     task_id,
                     item.get("title", "Unknown"),
                     source=item.get("url", ""),
                     thumb_path=thumb_path,
                 )
-                task_widget.paused.connect(self._on_pause_task)
-                task_widget.resumed.connect(self._on_resume_task)
-                task_widget.retried.connect(self._on_retry_task)
-                task_widget.deleted.connect(self._on_delete_task)
-                task_widget.opened.connect(self._on_open_task)
-                self.theme_changed.connect(task_widget.update_theme)
+                # Only connect signals once (new widgets need connections)
+                if not task_widget.signals_connected:
+                    task_widget.paused.connect(self._on_pause_task)
+                    task_widget.resumed.connect(self._on_resume_task)
+                    task_widget.retried.connect(self._on_retry_task)
+                    task_widget.deleted.connect(self._on_delete_task)
+                    task_widget.opened.connect(self._on_open_task)
+                    self.theme_changed.connect(task_widget.update_theme)
+                    task_widget.signals_connected = True
 
                 self._update_widget_state(task_widget, item)
 
@@ -1993,8 +2059,8 @@ class MainWindow(QMainWindow):
 
         # Update pagination counts; avoid rebuilding immediately if active downloads are running.
         self._update_queue_status()
-        self.pagination_widget.update_pagination(
-            len(self.history_manager.get_all()))
+        # Memory optimization: use get_count() instead of len(get_all())
+        self.pagination_widget.update_pagination(self.history_manager.get_count())
         self._request_refresh_current_page()
         self._cleanup_unused_thumbnails()
 

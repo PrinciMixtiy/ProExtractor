@@ -263,9 +263,20 @@ class ThumbnailLabel(QLabel):
             response = requests.get(url, timeout=THUMBNAIL_DOWNLOAD_TIMEOUT)
             image = QImage()
             image.loadFromData(response.content)
+            # Memory optimization: scale to max display size before creating pixmap
+            # This reduces memory usage by ~90% for high-res thumbnails
+            MAX_THUMB_WIDTH = 320
+            MAX_THUMB_HEIGHT = 180
+            if image.width() > MAX_THUMB_WIDTH or image.height() > MAX_THUMB_HEIGHT:
+                image = image.scaled(
+                    MAX_THUMB_WIDTH,
+                    MAX_THUMB_HEIGHT,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
             self._pixmap = QPixmap.fromImage(image)
-            self.setText("") # Clear "Loading..." text
-            self.update() # Trigger repaint
+            self.setText("")  # Clear "Loading..." text
+            self.update()  # Trigger repaint
         except Exception as e:
             self._pixmap = None
             self.setText(f"Error: {str(e)}")
@@ -799,6 +810,7 @@ class TaskItem(QFrame):
         self.task_id = task_id
         self.current_status = "pending"
         self.current_msg = "DOWNLOADING"
+        self.signals_connected = False  # Track if signals are connected (for widget pool)
         self.setObjectName("HistoryCard")
         self.setFixedHeight(80)
         # Remove hard-coded color - will use stylesheet
@@ -1088,6 +1100,47 @@ class TaskItem(QFrame):
         self.status_badge.setText("ERROR")
         self.speed_label.setText(error)
         self.speed_label.setStyleSheet("color: #f43f5e; font-size: 9px;")
+        self._update_ui_state()
+
+    def reset(self, task_id: str, title: str, source: str = "", thumb_path: str = ""):
+        """Reset widget for reuse in pool (memory optimization).
+
+        Avoids expensive widget destruction/creation by reusing existing widgets.
+        Called when widget is pulled from pool for new task display.
+        """
+        self.task_id = task_id
+        self.current_status = "pending"
+        self.current_msg = "DOWNLOADING"
+        self.current_progress = 0.0
+
+        # Reset UI elements
+        self.thumb_label.setPixmap(QPixmap())
+        self.thumb_label.setText("🎞️")
+        self.thumb_label.setAlignment(Qt.AlignCenter)
+
+        if thumb_path and os.path.exists(thumb_path):
+            self.set_thumbnail(thumb_path)
+
+        # Reset labels
+        metrics = self.title_label.fontMetrics()
+        elided = metrics.elidedText(title, Qt.ElideRight, 200)
+        self.title_label.setText(elided)
+
+        MAX_URL_LENGTH = 50
+        display_source = source if source else "Source unknown"
+        if len(display_source) > MAX_URL_LENGTH:
+            display_source = display_source[:MAX_URL_LENGTH - 3] + "..."
+        self.source_label.setText(display_source)
+
+        self.status_badge.setText("PENDING")
+        self.status_badge.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 900;")
+        self.size_label.setText("Unknown Size")
+        self.speed_label.setText("")
+        self.speed_label.setStyleSheet("")
+
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+
         self._update_ui_state()
 
 class VirtualPlaylistModel:

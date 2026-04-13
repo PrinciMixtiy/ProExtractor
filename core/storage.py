@@ -157,3 +157,44 @@ class HistoryManager:
     def get_all(self) -> List[Dict[str, Any]]:
         """Return all history items."""
         return self.history
+
+    def get_count(self) -> int:
+        """Return total count of history items (memory-efficient)."""
+        with self._lock:
+            return len(self.history)
+
+    def get_page(self, page: int, page_size: int) -> List[Dict[str, Any]]:
+        """Return a paginated slice of history items.
+
+        Memory-efficient: returns only the requested slice instead of all items.
+        This prevents memory spikes when history grows large (1000+ items).
+
+        Args:
+            page: Page number (0-indexed)
+            page_size: Number of items per page
+
+        Returns:
+            List of history items for the requested page
+        """
+        with self._lock:
+            start = page * page_size
+            end = start + page_size
+            return self.history[start:end]
+
+    def get_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single history item by task_id.
+
+        Memory-efficient: returns only the matching item or None.
+        Avoids loading entire history into memory for single lookups.
+
+        Args:
+            task_id: The task ID to search for
+
+        Returns:
+            The history item dict or None if not found
+        """
+        with self._lock:
+            for item in self.history:
+                if item.get("task_id") == task_id:
+                    return item
+            return None

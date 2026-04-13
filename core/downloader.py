@@ -27,11 +27,15 @@ Features:
 import os
 import time
 import logging
+import threading
 from typing import Any, Dict, Optional, Callable
 from yt_dlp import YoutubeDL
 from core.config import config
 from core.constants import FRAGMENT_RETRIES, SOCKET_TIMEOUT
 from core.utils import sanitize_filename, extract_domain
+
+# Global lock for yt-dlp operations - yt-dlp is not thread-safe
+_ytdlp_lock = threading.Lock()
 
 
 class DownloadCancelledException(Exception):
@@ -223,62 +227,63 @@ class DesktopDownloader:
             # Apply browser cookies based on per-domain auth settings
             self._apply_browser_cookies(ydl_opts, url)
 
-            with YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            with _ytdlp_lock:
+                with YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
 
-                if 'list=' in url and info.get('_type') != 'playlist' and 'entries' not in info:
-                    try:
-                        list_id = url.split('list=')[1].split('&')[0]
-                        playlist_url = f"https://www.youtube.com/playlist?list={list_id}"
-                        info = ydl.extract_info(playlist_url, download=False)
-                    except Exception:
-                        pass
+                    if 'list=' in url and info.get('_type') != 'playlist' and 'entries' not in info:
+                        try:
+                            list_id = url.split('list=')[1].split('&')[0]
+                            playlist_url = f"https://www.youtube.com/playlist?list={list_id}"
+                            info = ydl.extract_info(playlist_url, download=False)
+                        except Exception:
+                            pass
 
-                is_playlist = info.get(
-                    '_type') == 'playlist' or 'entries' in info
+                    is_playlist = info.get(
+                        '_type') == 'playlist' or 'entries' in info
 
-                formats = []
-                for f in info.get("formats", []):
-                    if f.get("vcodec") != "none":
-                        height = f.get("height")
-                        if height and height not in [fmt["height"] for fmt in formats]:
-                            formats.append({
-                                "format_id": f.get("format_id"),
-                                "ext": f.get("ext"),
-                                "height": height,
-                                "filesize": f.get("filesize"),
-                                "note": f.get("format_note")
-                            })
+                    formats = []
+                    for f in info.get("formats", []):
+                        if f.get("vcodec") != "none":
+                            height = f.get("height")
+                            if height and height not in [fmt["height"] for fmt in formats]:
+                                formats.append({
+                                    "format_id": f.get("format_id"),
+                                    "ext": f.get("ext"),
+                                    "height": height,
+                                    "filesize": f.get("filesize"),
+                                    "note": f.get("format_note")
+                                })
 
-                formats.sort(key=lambda x: x["height"] or 0, reverse=True)
+                    formats.sort(key=lambda x: x["height"] or 0, reverse=True)
 
-                if is_playlist and not formats and info.get("entries"):
-                    try:
-                        first_entry = info["entries"][0]
-                        if not first_entry.get("formats"):
-                            first_video_url = first_entry['url'].split('&list=')[
-                                0]
-                            with YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl_entry:
-                                first_entry = ydl_entry.extract_info(
-                                    first_video_url, download=False)
-                                info["entries"][0] = first_entry
+                    if is_playlist and not formats and info.get("entries"):
+                        try:
+                            first_entry = info["entries"][0]
+                            if not first_entry.get("formats"):
+                                first_video_url = first_entry['url'].split('&list=')[
+                                    0]
+                                with YoutubeDL({'quiet': True, 'noplaylist': True}) as ydl_entry:
+                                    first_entry = ydl_entry.extract_info(
+                                        first_video_url, download=False)
+                                    info["entries"][0] = first_entry
 
-                        for f in first_entry.get("formats", []):
-                            if f.get("vcodec") != "none":
-                                height = f.get("height")
-                                if height and height not in [fmt["height"] for fmt in formats]:
-                                    formats.append({
-                                        "format_id": f.get("format_id"),
-                                        "ext": f.get("ext"),
-                                        "height": height,
-                                        "filesize": f.get("filesize"),
-                                        "note": f.get("format_note")
-                                    })
-                        formats.sort(
-                            key=lambda x: x["height"] or 0, reverse=True)
-                    except Exception as e:
-                        logging.debug(
-                            f"Failed to extract formats from playlist entry: {e}")
+                            for f in first_entry.get("formats", []):
+                                if f.get("vcodec") != "none":
+                                    height = f.get("height")
+                                    if height and height not in [fmt["height"] for fmt in formats]:
+                                        formats.append({
+                                            "format_id": f.get("format_id"),
+                                            "ext": f.get("ext"),
+                                            "height": height,
+                                            "filesize": f.get("filesize"),
+                                            "note": f.get("format_note")
+                                        })
+                            formats.sort(
+                                key=lambda x: x["height"] or 0, reverse=True)
+                        except Exception as e:
+                            logging.debug(
+                                f"Failed to extract formats from playlist entry: {e}")
 
                 if is_playlist and not formats:
                     formats.append({
@@ -299,14 +304,14 @@ class DesktopDownloader:
                 if is_playlist and info.get("entries"):
                     for i, entry in enumerate(info.get("entries", [])):
                         url = entry.get('url', '').strip() if entry else ''
-                        if entry and url:  
+                        if entry and url:
                             playlist_entries.append({
                                 "id": entry.get('id'),
                                 "title": entry.get('title'),
                                 "url": url,
                                 "duration": entry.get('duration'),
                                 "thumbnail": entry.get('thumbnail'),
-                                "index": i + 1  
+                                "index": i + 1
                             })
 
                 available_subtitles = set()
@@ -547,11 +552,12 @@ class DesktopDownloader:
             if postprocessors:
                 options['postprocessors'] = postprocessors
 
-            with YoutubeDL(options) as ydl:
-                info = ydl.extract_info(url)
-                actual_filepath = info.get('requested_downloads', [{}])[0].get(
-                    'filepath') or ydl.prepare_filename(info)
-                return os.path.abspath(actual_filepath)
+            with _ytdlp_lock:
+                with YoutubeDL(options) as ydl:
+                    info = ydl.extract_info(url)
+                    actual_filepath = info.get('requested_downloads', [{}])[0].get(
+                        'filepath') or ydl.prepare_filename(info)
+                    return os.path.abspath(actual_filepath)
 
         except DownloadCancelledException:
             raise
