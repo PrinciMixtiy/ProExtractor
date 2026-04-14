@@ -981,15 +981,19 @@ class TaskItem(QFrame):
 
     def set_thumbnail(self, thumb_path: str):
         if thumb_path and os.path.exists(thumb_path):
-            pix = QPixmap(thumb_path)
-            self.thumb_label.setPixmap(
-                pix.scaled(
-                    self.thumb_label.width(),
-                    self.thumb_label.height(),
-                    Qt.KeepAspectRatioByExpanding,
-                    Qt.SmoothTransformation,
+            try:
+                pix = QPixmap(thumb_path)
+                self.thumb_label.setPixmap(
+                    pix.scaled(
+                        self.thumb_label.width(),
+                        self.thumb_label.height(),
+                        Qt.KeepAspectRatioByExpanding,
+                        Qt.SmoothTransformation,
+                    )
                 )
-            )
+            except RuntimeError:
+                # C++ object already deleted, skip UI update
+                pass
 
     def _update_ui_state(self):
         # Hide all by default
@@ -1113,30 +1117,41 @@ class TaskItem(QFrame):
         self.current_msg = "DOWNLOADING"
         self.current_progress = 0.0
 
-        # Reset UI elements
-        self.thumb_label.setPixmap(QPixmap())
-        self.thumb_label.setText("🎞️")
-        self.thumb_label.setAlignment(Qt.AlignCenter)
+        # Reset UI elements with defensive checks for deleted C++ objects
+        try:
+            self.thumb_label.setPixmap(QPixmap())
+            self.thumb_label.setText("🎞️")
+            self.thumb_label.setAlignment(Qt.AlignCenter)
+        except RuntimeError:
+            # C++ object already deleted, skip UI update
+            pass
 
         if thumb_path and os.path.exists(thumb_path):
             self.set_thumbnail(thumb_path)
 
-        # Reset labels
-        metrics = self.title_label.fontMetrics()
-        elided = metrics.elidedText(title, Qt.ElideRight, 200)
-        self.title_label.setText(elided)
+        # Reset labels with defensive checks
+        try:
+            metrics = self.title_label.fontMetrics()
+            elided = metrics.elidedText(title, Qt.ElideRight, 200)
+            self.title_label.setText(elided)
+        except RuntimeError:
+            pass
 
         MAX_URL_LENGTH = 50
         display_source = source if source else "Source unknown"
         if len(display_source) > MAX_URL_LENGTH:
             display_source = display_source[:MAX_URL_LENGTH - 3] + "..."
-        self.source_label.setText(display_source)
 
-        self.status_badge.setText("PENDING")
-        self.status_badge.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 900;")
-        self.size_label.setText("Unknown Size")
-        self.speed_label.setText("")
-        self.speed_label.setStyleSheet("")
+        try:
+            self.source_label.setText(display_source)
+            self.status_badge.setText("PENDING")
+            self.status_badge.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 900;")
+            self.size_label.setText("Unknown Size")
+            self.speed_label.setText("")
+            self.speed_label.setStyleSheet("")
+        except RuntimeError:
+            # C++ object already deleted, skip UI update
+            pass
 
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)

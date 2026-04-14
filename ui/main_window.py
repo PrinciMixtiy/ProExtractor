@@ -86,6 +86,14 @@ class TaskItemWidgetPool:
         self._in_use.clear()
 
         for widget in widgets_to_return:
+            # Check if C++ object is still valid before operating on it
+            try:
+                # Attempt a harmless operation to test if object is valid
+                _ = widget.isVisible()
+            except RuntimeError:
+                # C++ object already deleted, skip this widget
+                continue
+
             if len(self._available) < self.max_size:
                 self._available.append(widget)
             else:
@@ -190,6 +198,12 @@ class MainWindow(QMainWindow):
         self.active_task_ids = set()  # Track active task IDs
         self.pending_task_ids = set()  # Track pending task IDs
         self.queued_task_ids = set()   # Track queued task IDs
+
+        # Track active filenames to prevent concurrent download conflicts
+        # Maps destination_dir -> set of filenames currently being downloaded
+        self._active_filenames = {}
+        # Maps task_id -> (dest, filename) for active downloads to enable cleanup
+        self._task_filenames = {}
 
         self.max_concurrent = config.get('downloads.max_concurrent', 4)
         self.current_info = None
@@ -1280,12 +1294,32 @@ class MainWindow(QMainWindow):
                         base = os.path.splitext(
                             os.path.basename(existing_path))[0]
                         ext = os.path.splitext(existing_path)[1]
-                        new_base = self._next_available_copy_name(
-                            dest, base, ext)
+                        # Use reservation system to prevent concurrent conflicts
+                        new_base = self._reserve_unique_filename(
+                            dest, base, ext, task_id)
                         options["filename_override"] = new_base
+                        # Track the reservation for cleanup
+                        self._task_filenames[task_id] = (dest, f"{new_base}{ext}")
             except Exception as e:
                 self.logger.debug(
                     "Duplicate-file check failed: %s", e, exc_info=True)
+
+            # For non-duplicate cases, still reserve a unique filename to prevent
+            # concurrent download conflicts (multiple videos with same title)
+            if not options.get("filename_override") and not options.get("force_overwrites"):
+                try:
+                    # Predict the base filename that yt-dlp would use
+                    predicted_path = self._predict_output_path(dest, url, title, options)
+                    if predicted_path:
+                        base = os.path.splitext(os.path.basename(predicted_path))[0]
+                        ext = os.path.splitext(predicted_path)[1]
+                        unique_base = self._reserve_unique_filename(dest, base, ext, task_id)
+                        if unique_base != base:
+                            options["filename_override"] = unique_base
+                        # Track the reservation for cleanup (even if same as base)
+                        self._task_filenames[task_id] = (dest, f"{unique_base}{ext}")
+                except Exception as e:
+                    self.logger.debug("Filename reservation failed: %s", e, exc_info=True)
 
             worker = DownloadWorker(task_id, url, dest, options)
 
@@ -1399,6 +1433,44 @@ class MainWindow(QMainWindow):
                 return candidate_base
             n += 1
 
+    def _reserve_unique_filename(self, dest: str, base: str, ext: str, task_id: str) -> str:
+        """
+        Reserve a unique filename for a concurrent download.
+
+        This prevents multiple concurrent downloads from racing to use the same
+        filename (e.g., 'Module Intro (1).mp4'), which causes fragment file conflicts.
+
+        Returns the unique base name (without extension) that was reserved.
+        """
+        # Initialize tracking for this destination directory
+        if dest not in self._active_filenames:
+            self._active_filenames[dest] = set()
+
+        active_in_dest = self._active_filenames[dest]
+
+        # Start with the base name
+        candidate_base = base
+        n = 1
+
+        while True:
+            candidate_filename = f"{candidate_base}{ext}"
+            # Check both active downloads and existing files on disk
+            if candidate_filename not in active_in_dest and not os.path.exists(os.path.join(dest, candidate_filename)):
+                # Found a unique name, reserve it
+                active_in_dest.add(candidate_filename)
+                return candidate_base
+            # Try next number
+            candidate_base = f"{base} ({n})"
+            n += 1
+
+    def _release_filename(self, dest: str, filename: str):
+        """Release a filename reservation when download completes."""
+        if dest in self._active_filenames:
+            self._active_filenames[dest].discard(filename)
+            # Clean up empty sets
+            if not self._active_filenames[dest]:
+                del self._active_filenames[dest]
+
     def _prompt_duplicate_decision(self, existing_path: str) -> str:
         """Prompt user: copy duplicate, replace, or skip; optionally remember for this batch."""
         box = QMessageBox(self)
@@ -1454,6 +1526,11 @@ class MainWindow(QMainWindow):
 
             # Remove from performance tracking sets
             self.active_task_ids.discard(task_id)
+
+        # Release filename reservation if any
+        if task_id in self._task_filenames:
+            dest, filename = self._task_filenames.pop(task_id)
+            self._release_filename(dest, filename)
 
         # Promote one queued task to pending if we have capacity
         if len(self.active_workers) < self.max_concurrent and self.queued_tasks:
@@ -2138,4 +2215,40 @@ class MainWindow(QMainWindow):
                 self.history_manager.flush()
         except Exception:
             pass
+
+        # Stop all thumbnail workers
+        if hasattr(self, 'thumb_workers'):
+            for worker in list(self.thumb_workers):
+                try:
+                    worker.quit()
+                    worker.wait(1000)
+                    if worker.isRunning():
+                        worker.terminate()
+                except Exception:
+                    pass
+            self.thumb_workers.clear()
+
+        # Stop all info workers
+        if hasattr(self, 'running_info_workers'):
+            for thread, worker in list(self.running_info_workers):
+                try:
+                    thread.quit()
+                    thread.wait(1000)
+                    if thread.isRunning():
+                        thread.terminate()
+                except Exception:
+                    pass
+            self.running_info_workers.clear()
+
+        # Stop all download workers
+        if hasattr(self, 'active_workers'):
+            for task_id, worker in list(self.active_workers.items()):
+                try:
+                    worker.cancel()
+                    worker.terminate()
+                    worker.join(1.0)
+                except Exception:
+                    pass
+            self.active_workers.clear()
+
         super().closeEvent(event)
