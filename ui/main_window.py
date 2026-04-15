@@ -23,7 +23,8 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QLineEdit, QPushButton, QLabel, QScrollArea,
                                QMessageBox, QFrame, QStackedWidget, QMenu,
                                QCheckBox, QSizePolicy)
-from PySide6.QtCore import Qt, Signal, QTimer, Slot, QSize
+from PySide6.QtCore import Qt, Signal, QTimer, Slot, QSize, QThread
+from typing import Dict, List, Set, Tuple, Any, Optional
 from PySide6.QtGui import QTransform
 from styles import get_stylesheet, get_theme_colors
 from ui.icons import get_icon
@@ -32,7 +33,6 @@ from ui.widgets import (VideoInfoCard, StreamOptionsCard, TaskItem,
 import uuid
 import requests
 import re
-from PySide6.QtCore import QThread, Signal
 
 
 class TaskItemWidgetPool:
@@ -169,45 +169,45 @@ class MainWindow(QMainWindow):
         self.history_manager = HistoryManager()
         self._downloader = DesktopDownloader()
         self._reconcile_history_on_startup()
-        self.active_workers = {}  # task_id -> (thread, worker)
+        self.active_workers: Dict[str, Tuple[QThread, Any]] = {}  # task_id -> (thread, worker)
         # Task queues store only task metadata to keep memory usage low.
         # UI widgets are created only for the currently visible history page.
         # List of (task_id, url, dest, options) - will be processed (active/pending)
-        self.pending_tasks = []
+        self.pending_tasks: List[Tuple[str, str, str, dict]] = []
         # List of (task_id, url, dest, options) - waiting behind capacity
-        self.queued_tasks = []
-        self.visible_widgets = {}  # task_id -> TaskItem for currently displayed page only
+        self.queued_tasks: List[Tuple[str, str, str, dict]] = []
+        self.visible_widgets: Dict[str, Any] = {}  # task_id -> TaskItem for currently displayed page only
 
         # Memory optimization: widget pool for reusing TaskItem instances
         # This reduces allocation overhead and GC pressure during pagination
         self._task_widget_pool = TaskItemWidgetPool(max_size=20)
 
         # Prevent duplicate thumbnail downloads and reduce peak memory.
-        self._thumbnail_requested_task_ids = set()
+        self._thumbnail_requested_task_ids: Set[str] = set()
 
         # Throttle refreshes during bursty status changes (starting/promoting many tasks).
-        self._refresh_scheduled = False
+        self._refresh_scheduled: bool = False
         # Allow exactly one history page rebuild even while downloads are active.
         # This is needed so the first page contents appear right after clicking
         # "Start Download" (destination folder selection).
-        self._allow_history_rebuild_once = False
+        self._allow_history_rebuild_once: bool = False
         # Duplicate-file dialog: None = ask each time; "copy" | "replace" | "skip" when remembered for this batch.
-        self._duplicate_policy = None
+        self._duplicate_policy: Optional[str] = None
 
         # Performance optimization: O(1) lookup sets
-        self.active_task_ids = set()  # Track active task IDs
-        self.pending_task_ids = set()  # Track pending task IDs
-        self.queued_task_ids = set()   # Track queued task IDs
+        self.active_task_ids: Set[str] = set()  # Track active task IDs
+        self.pending_task_ids: Set[str] = set()  # Track pending task IDs
+        self.queued_task_ids: Set[str] = set()   # Track queued task IDs
 
         # Track active filenames to prevent concurrent download conflicts
         # Maps destination_dir -> set of filenames currently being downloaded
-        self._active_filenames = {}
+        self._active_filenames: Dict[str, Set[str]] = {}
         # Maps task_id -> (dest, filename) for active downloads to enable cleanup
-        self._task_filenames = {}
+        self._task_filenames: Dict[str, Tuple[str, str]] = {}
 
-        self.max_concurrent = config.get('downloads.max_concurrent', 4)
-        self.current_info = None
-        self.running_info_workers = []  # Track active info workers to prevent crash
+        self.max_concurrent: int = config.get('downloads.max_concurrent', 4)
+        self.current_info: Optional[dict] = None
+        self.running_info_workers: List[Tuple[QThread, Any]] = []  # Track active info workers to prevent crash
 
         # Pagination for history
         self.pagination_widget = PaginationWidget(page_size=DEFAULT_PAGE_SIZE)

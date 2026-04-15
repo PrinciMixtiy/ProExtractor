@@ -117,7 +117,7 @@ class ConfigManager:
             return value
         except (KeyError, TypeError):
             # Check environment variable override
-            env_key = f"YOUTUBE_DOWNLOADER_{key.upper().replace('.', '_')}"
+            env_key = f"PRO_EXTRACTOR_{key.upper().replace('.', '_')}"
             env_value = os.getenv(env_key)
             if env_value is not None:
                 return self._convert_env_value(env_value)

@@ -6,6 +6,8 @@ filename sanitization, resource path resolution, and URL parsing.
 """
 
 import re
+import sys
+import os
 from urllib.parse import urlparse
 
 def sanitize_filename(text: str, length: int = 100) -> str:
@@ -38,7 +40,7 @@ def sanitize_filename(text: str, length: int = 100) -> str:
             text = chopped.rsplit(' ', 1)[0].rstrip(' -_')
         else:
             text = chopped
-            
+
     return text
 
 def get_resource_path(relative_path: str) -> str:
@@ -51,9 +53,6 @@ def get_resource_path(relative_path: str) -> str:
     Returns:
         Absolute path to the resource.
     """
-    import sys
-    import os
-    
     # PyInstaller creates a temp folder and stores path in _MEIPASS
     base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
     

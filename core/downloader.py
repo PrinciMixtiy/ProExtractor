@@ -25,6 +25,7 @@ Features:
 """
 
 import os
+import re
 import time
 import logging
 from typing import Any, Dict, Optional, Callable
@@ -163,12 +164,40 @@ class DesktopDownloader:
 
         return formatted.strip()
 
+    def _extract_unique_formats(self, formats_list: list) -> list:
+        """Extract unique video formats by resolution from yt-dlp format list.
+        
+        Args:
+            formats_list: Raw formats list from yt-dlp extract_info
+            
+        Returns:
+            Sorted list of unique formats (highest resolution first)
+        """
+        seen_heights = set()
+        unique_formats = []
+        
+        for f in formats_list:
+            if f.get("vcodec") == "none":
+                continue
+            height = f.get("height")
+            if height and height not in seen_heights:
+                seen_heights.add(height)
+                unique_formats.append({
+                    "format_id": f.get("format_id"),
+                    "ext": f.get("ext"),
+                    "height": height,
+                    "filesize": f.get("filesize"),
+                    "note": f.get("format_note")
+                })
+        
+        unique_formats.sort(key=lambda x: x["height"] or 0, reverse=True)
+        return unique_formats
+
     def _extract_id_from_url(self, url: str) -> str:
         """Extract video ID from YouTube URL."""
         if not url:
             return 'unknown'
 
-        import re
         # Try to extract video ID from URL
         patterns = [
             r'(?:v=|/)([0-9A-Za-z_-]{11})',  # Standard YouTube URL
@@ -240,20 +269,7 @@ class DesktopDownloader:
                 is_playlist = info.get(
                     '_type') == 'playlist' or 'entries' in info
 
-                formats = []
-                for f in info.get("formats", []):
-                    if f.get("vcodec") != "none":
-                        height = f.get("height")
-                        if height and height not in [fmt["height"] for fmt in formats]:
-                            formats.append({
-                                "format_id": f.get("format_id"),
-                                "ext": f.get("ext"),
-                                "height": height,
-                                "filesize": f.get("filesize"),
-                                "note": f.get("format_note")
-                            })
-
-                formats.sort(key=lambda x: x["height"] or 0, reverse=True)
+                formats = self._extract_unique_formats(info.get("formats", []))
 
                 if is_playlist and not formats and info.get("entries"):
                     try:
@@ -266,19 +282,7 @@ class DesktopDownloader:
                                     first_video_url, download=False)
                                 info["entries"][0] = first_entry
 
-                        for f in first_entry.get("formats", []):
-                            if f.get("vcodec") != "none":
-                                height = f.get("height")
-                                if height and height not in [fmt["height"] for fmt in formats]:
-                                    formats.append({
-                                        "format_id": f.get("format_id"),
-                                        "ext": f.get("ext"),
-                                        "height": height,
-                                        "filesize": f.get("filesize"),
-                                        "note": f.get("format_note")
-                                    })
-                        formats.sort(
-                            key=lambda x: x["height"] or 0, reverse=True)
+                        formats = self._extract_unique_formats(first_entry.get("formats", []))
                     except Exception as e:
                         logging.debug(
                             f"Failed to extract formats from playlist entry: {e}")

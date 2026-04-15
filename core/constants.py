@@ -57,11 +57,6 @@ FRAGMENT_RETRIES: Final[int] = 5
 THUMBNAIL_DOWNLOAD_TIMEOUT: Final[int] = 10  # seconds
 THUMBNAIL_EXTENSION: Final[str] = ".jpg"
 
-# Regular Expressions
-# YOUTUBE_URL_PATTERN: Final[str] = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})'
-# PLAYLIST_PATTERN: Final[str] = r'[?&]list=([a-zA-Z0-9_-]+)'
-# VIDEO_ID_PATTERN: Final[str] = r'(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})'
-
 # Directory Names
 DATA_DIR_NAME: Final[str] = "data"
 LOGS_DIR_NAME: Final[str] = "logs"

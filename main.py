@@ -11,8 +11,6 @@ import subprocess
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from PySide6.QtGui import QIcon
-
 # Add the project root to sys.path to allow absolute imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -111,9 +109,6 @@ def check_dependencies():
 
 def setup_logging():
     """Configure application-wide logging."""
-    from core.constants import APP_NAME
-    from core.config import config
-    
     # Check config for custom log directory
     config_log_dir = config.get('paths.log_dir')
     if config_log_dir:

@@ -709,16 +709,4 @@ def get_stylesheet():
         border-left: 4px solid {colors['accent']};
         padding-left: 8px;
     }}
-    
-    #ListItem {{
-        background-color: {colors['bg_card']};
-        border: 1px solid {colors['outer_border']};
-        border-radius: 4px;
-        margin-bottom: 6px;
-    }}
-    
-    #ListItem:hover {{
-        border: 1px solid {colors['outer_border']};
-        background-color: {colors['bg_main']};
-    }}
     """
