@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QGroupBox, QFormLayout, QStackedWidget, QButtonGroup,
     QRadioButton, QMessageBox, QScrollArea
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QSize
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,8 @@ from core.constants import (
     CONTENT_MARGIN, CARD_SPACING, BUTTON_HEIGHT,
     INPUT_HEIGHT, FILENAME_TAGS, MAX_CONCURRENT_LIMIT, MIN_CONCURRENT_LIMIT, Theme
 )
+from ui.icons import get_icon
+from styles import get_theme_colors
 
 
 class SettingsPage(QWidget):
@@ -123,7 +125,12 @@ class SettingsPage(QWidget):
         """Handle tab button clicks."""
         index = self.tab_buttons.id(button)
         self.stacked_widget.setCurrentIndex(index)
-    
+
+    def update_theme(self):
+        """Update theme for all settings sections."""
+        self.general_section.update_theme()
+        self.advanced_section.update_theme()
+
     def _on_setting_changed(self):
         """Handle setting changes."""
         self.apply_btn.setEnabled(True)
@@ -202,9 +209,12 @@ class GeneralSettings(QWidget):
         self.folder_path.setFixedHeight(INPUT_HEIGHT)
         folder_path_layout.addWidget(self.folder_path)
         
-        self.browse_btn = QPushButton("Browse")
-        self.browse_btn.setFixedHeight(BUTTON_HEIGHT)
-        self.browse_btn.setFixedWidth(80)
+        self.browse_btn = QPushButton()
+        self.browse_btn.setFixedSize(32, 32)
+        self.browse_btn.setIcon(get_icon("folder.png", get_theme_colors()['text_primary']))
+        self.browse_btn.setIconSize(QSize(16, 16))
+        self.browse_btn.setCursor(Qt.PointingHandCursor)
+        self.browse_btn.setToolTip("Browse for folder")
         self.browse_btn.clicked.connect(self._browse_folder)
         folder_path_layout.addWidget(self.browse_btn)
         
@@ -291,13 +301,18 @@ class GeneralSettings(QWidget):
     def _browse_folder(self):
         """Browse for download folder."""
         folder = QFileDialog.getExistingDirectory(
-            self, "Select Download Folder", 
+            self, "Select Download Folder",
             self.folder_path.text() or str(Path.home())
         )
         if folder:
             self.folder_path.setText(folder)
             self.setting_changed.emit()
-    
+
+    def update_theme(self):
+        """Update icon colors when theme changes."""
+        colors = get_theme_colors()
+        self.browse_btn.setIcon(get_icon("folder.png", colors['text_primary']))
+
     def load_settings(self):
         """Load general settings."""
         self.folder_path.setText(config.get('general.default_download_folder', ''))
@@ -522,14 +537,18 @@ class AdvancedSettings(QWidget):
         ffmpeg_layout.setVerticalSpacing(8)
         
         ffmpeg_path_layout = QHBoxLayout()
+        ffmpeg_path_layout.setSpacing(8)
         self.ffmpeg_path = QLineEdit()
         self.ffmpeg_path.setFixedHeight(INPUT_HEIGHT)
         self.ffmpeg_path.setPlaceholderText("Auto-detect (recommended)")
         ffmpeg_path_layout.addWidget(self.ffmpeg_path)
         
-        self.ffmpeg_browse = QPushButton("Browse")
-        self.ffmpeg_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.ffmpeg_browse.setFixedWidth(80)
+        self.ffmpeg_browse = QPushButton()
+        self.ffmpeg_browse.setFixedSize(32, 32)
+        self.ffmpeg_browse.setIcon(get_icon("folder.png", get_theme_colors()['text_primary']))
+        self.ffmpeg_browse.setIconSize(QSize(16, 16))
+        self.ffmpeg_browse.setCursor(Qt.PointingHandCursor)
+        self.ffmpeg_browse.setToolTip("Browse for FFmpeg executable")
         self.ffmpeg_browse.clicked.connect(self._browse_ffmpeg)
         ffmpeg_path_layout.addWidget(self.ffmpeg_browse)
         
@@ -543,14 +562,18 @@ class AdvancedSettings(QWidget):
         
         # Data Directory
         data_dir_layout = QHBoxLayout()
+        data_dir_layout.setSpacing(8)
         self.data_dir = QLineEdit()
         self.data_dir.setFixedHeight(INPUT_HEIGHT)
         self.data_dir.setPlaceholderText("Default data directory")
         data_dir_layout.addWidget(self.data_dir)
         
-        self.data_dir_browse = QPushButton("Browse")
-        self.data_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.data_dir_browse.setFixedWidth(80)
+        self.data_dir_browse = QPushButton()
+        self.data_dir_browse.setFixedSize(32, 32)
+        self.data_dir_browse.setIcon(get_icon("folder.png", get_theme_colors()['text_primary']))
+        self.data_dir_browse.setIconSize(QSize(16, 16))
+        self.data_dir_browse.setCursor(Qt.PointingHandCursor)
+        self.data_dir_browse.setToolTip("Browse for data directory")
         self.data_dir_browse.clicked.connect(self._browse_data_dir)
         data_dir_layout.addWidget(self.data_dir_browse)
         
@@ -558,14 +581,18 @@ class AdvancedSettings(QWidget):
         
         # Log Directory
         log_dir_layout = QHBoxLayout()
+        log_dir_layout.setSpacing(8)
         self.log_dir = QLineEdit()
         self.log_dir.setFixedHeight(INPUT_HEIGHT)
         self.log_dir.setPlaceholderText("Default log directory")
         log_dir_layout.addWidget(self.log_dir)
         
-        self.log_dir_browse = QPushButton("Browse")
-        self.log_dir_browse.setFixedHeight(BUTTON_HEIGHT)
-        self.log_dir_browse.setFixedWidth(80)
+        self.log_dir_browse = QPushButton()
+        self.log_dir_browse.setFixedSize(32, 32)
+        self.log_dir_browse.setIcon(get_icon("folder.png", get_theme_colors()['text_primary']))
+        self.log_dir_browse.setIconSize(QSize(16, 16))
+        self.log_dir_browse.setCursor(Qt.PointingHandCursor)
+        self.log_dir_browse.setToolTip("Browse for log directory")
         self.log_dir_browse.clicked.connect(self._browse_log_dir)
         log_dir_layout.addWidget(self.log_dir_browse)
         
@@ -611,7 +638,14 @@ class AdvancedSettings(QWidget):
         if folder:
             self.log_dir.setText(folder)
             self.setting_changed.emit()
-    
+
+    def update_theme(self):
+        """Update icon colors when theme changes."""
+        colors = get_theme_colors()
+        self.ffmpeg_browse.setIcon(get_icon("folder.png", colors['text_primary']))
+        self.data_dir_browse.setIcon(get_icon("folder.png", colors['text_primary']))
+        self.log_dir_browse.setIcon(get_icon("folder.png", colors['text_primary']))
+
     def load_settings(self):
         """Load advanced settings."""
         self.ffmpeg_path.setText(config.get('advanced.ffmpeg_path', ''))
@@ -759,42 +793,84 @@ class AuthenticationSettings(QWidget):
         self.default_cookies_checkbox.setEnabled(not is_disabled)
         for checkbox in self.domain_checkboxes.values():
             checkbox.setEnabled(not is_disabled)
-        # Also disable custom domain checkboxes
+        # Also disable custom domain rows (checkbox and remove button)
         for i in range(self.custom_domains_layout.count()):
-            widget = self.custom_domains_layout.itemAt(i).widget()
-            if widget and isinstance(widget, QCheckBox):
-                widget.setEnabled(not is_disabled)
+            row_widget = self.custom_domains_layout.itemAt(i).widget()
+            if row_widget:
+                row_widget.setEnabled(not is_disabled)
         self._on_setting_changed()
     
+    def _create_custom_domain_row(self, domain, enabled=True):
+        """Create a row with checkbox and remove button for a custom domain."""
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+
+        # Checkbox for the domain
+        checkbox = QCheckBox(f"{domain} (custom)")
+        checkbox.setChecked(enabled)
+        checkbox.stateChanged.connect(self._on_setting_changed)
+        row_layout.addWidget(checkbox, stretch=1)
+
+        # Remove button with trash icon
+        remove_btn = QPushButton()
+        remove_btn.setFixedSize(26, 26)
+        remove_btn.setIcon(get_icon("trash.png", "#f43f5e"))  # Red for delete action
+        remove_btn.setIconSize(QSize(14, 14))
+        remove_btn.setCursor(Qt.PointingHandCursor)
+        remove_btn.setToolTip(f"Remove {domain}")
+        remove_btn.clicked.connect(lambda: self._remove_custom_domain(domain, row_widget))
+        row_layout.addWidget(remove_btn)
+
+        # Check if browser is disabled
+        is_disabled = (self.browser_combo.currentIndex() == 4)
+        checkbox.setEnabled(not is_disabled)
+        remove_btn.setEnabled(not is_disabled)
+
+        self.domain_checkboxes[domain] = checkbox
+        return row_widget
+
     def _add_custom_domain(self):
         """Add a custom domain to the list."""
         domain = self.custom_domain_input.text().strip().lower()
         if not domain:
             return
-        
+
         # Validate domain format (basic check)
         if '.' not in domain or domain.startswith('.') or domain.endswith('.'):
             QMessageBox.warning(self, "Invalid Domain", "Please enter a valid domain (e.g., example.com)")
             return
-        
+
         # Check if already exists
         if domain in self.domain_checkboxes:
             QMessageBox.information(self, "Domain Exists", f"{domain} is already in the list.")
             return
-        
-        # Add checkbox for custom domain
-        checkbox = QCheckBox(f"{domain} (custom)")
-        checkbox.setChecked(True)
-        checkbox.stateChanged.connect(self._on_setting_changed)
-        
-        # Check if browser is disabled
-        is_disabled = (self.browser_combo.currentIndex() == 4)
-        checkbox.setEnabled(not is_disabled)
-        
-        self.domain_checkboxes[domain] = checkbox
-        self.custom_domains_layout.addWidget(checkbox)
+
+        # Add row with checkbox and remove button
+        row_widget = self._create_custom_domain_row(domain)
+        self.custom_domains_layout.addWidget(row_widget)
         self.custom_domain_input.clear()
         self._on_setting_changed()
+
+    def _remove_custom_domain(self, domain, row_widget):
+        """Remove a custom domain from the list."""
+        reply = QMessageBox.question(
+            self, "Remove Domain",
+            f"Are you sure you want to remove {domain} from the list?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            # Remove from tracking dict
+            if domain in self.domain_checkboxes:
+                del self.domain_checkboxes[domain]
+
+            # Remove the row widget from layout
+            self.custom_domains_layout.removeWidget(row_widget)
+            row_widget.deleteLater()
+
+            self._on_setting_changed()
     
     def _on_setting_changed(self):
         """Emit signal when any setting changes."""
@@ -834,12 +910,9 @@ class AuthenticationSettings(QWidget):
         default_keys = set(self.DEFAULT_DOMAINS.keys())
         for domain, enabled in domain_overrides.items():
             if domain not in default_keys and domain not in self.domain_checkboxes:
-                # Add custom domain checkbox
-                checkbox = QCheckBox(f"{domain} (custom)")
-                checkbox.setChecked(enabled)
-                checkbox.stateChanged.connect(self._on_setting_changed)
-                self.domain_checkboxes[domain] = checkbox
-                self.custom_domains_layout.addWidget(checkbox)
+                # Add custom domain row with checkbox and remove button
+                row_widget = self._create_custom_domain_row(domain, enabled)
+                self.custom_domains_layout.addWidget(row_widget)
         
         # Trigger browser changed to set enabled state
         self._on_browser_changed(self.browser_combo.currentIndex())

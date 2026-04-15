@@ -516,6 +516,7 @@ class MainWindow(QMainWindow):
         # Settings Page
         self.settings_page = SettingsPage()
         self.settings_page.settings_changed.connect(self._on_settings_changed)
+        self.theme_changed.connect(self.settings_page.update_theme)
         self.pages.addWidget(self.settings_page)
 
         self.content_layout.addWidget(self.pages)
