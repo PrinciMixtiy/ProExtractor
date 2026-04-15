@@ -545,6 +545,8 @@ class DesktopDownloader:
                 options['subtitleslangs'] = [subtitle_language]
                 options['subtitlesformat'] = 'srt'
                 options['writeautomaticsub'] = True
+                # Throttle requests to avoid 429 rate limit errors on subtitle/caption endpoints
+                options['sleep_interval_requests'] = 1
                 # Per user request: Always download separate subtitles, never embed them.
 
             if postprocessors:
