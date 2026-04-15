@@ -33,6 +33,7 @@ from yt_dlp import YoutubeDL
 from core.config import config
 from core.constants import FRAGMENT_RETRIES, SOCKET_TIMEOUT
 from core.utils import sanitize_filename, extract_domain
+from core.ffmpeg_manager import ffmpeg_manager
 
 
 class DownloadCancelledException(Exception):
@@ -497,6 +498,11 @@ class DesktopDownloader:
                 'merge_output_format': effective_merge_format if not audio_only else None,
                 'logger': SimpleDownloadLogger(),
             }
+
+            # Apply FFmpeg location if available
+            ffmpeg_opts = ffmpeg_manager.get_ytdlp_options()
+            if ffmpeg_opts:
+                options.update(ffmpeg_opts)
 
             # Apply browser cookies based on per-domain auth settings
             self._apply_browser_cookies(options, url)

@@ -14,7 +14,7 @@ A modern desktop application for downloading YouTube videos and playlists with a
 - **Concurrent Downloads**: Configurable simultaneous downloads (1-10 max)
 - **Production Logging**: Detailed logs saved to the user data directory for easy troubleshooting
 - **Progress Tracking**: Real-time download progress with speed and ETA
-- **FFmpeg Integration**: For high-quality video merging and audio extraction
+- **FFmpeg Integration**: Bundled FFmpeg for video merging, audio extraction, and thumbnail embedding (no separate install needed for builds)
 - **Configurable Filename Patterns**: Use tags like {title}, {id}, {author}, {duration}
 - **Retry Mechanism**: Automatic retries on failure with exponential backoff
 - **Browser Cookies**: Support for using browser cookies for authentication
@@ -36,7 +36,8 @@ A modern desktop application for downloading YouTube videos and playlists with a
 - **`ui/icons.py`**: Icon management
 - **`styles.py`**: Dynamic theming system with dark/light support
 - **`core/utils.py`**: Shared utilities like centralized filename sanitization
-- **`generate_build.py`**: Automated build script for creating standalone executables
+- **`core/ffmpeg_manager.py`**: FFmpeg path resolution for bundled and system installs
+- **`generate_build.py`**: Automated build script with FFmpeg bundling support
 
 ### Design Patterns
 
@@ -50,7 +51,7 @@ A modern desktop application for downloading YouTube videos and playlists with a
 ### Prerequisites
 
 - Python 3.8 or higher
-- FFmpeg (required for video processing)
+- FFmpeg (bundled in builds; system install required for development)
 - Git (for cloning the repository)
 
 ### Dependencies
@@ -132,14 +133,21 @@ python main.py
 
 ### Production Distribution
 
-To generate a standalone executable (no Python required on target machine):
+To generate a standalone executable (no Python or FFmpeg required on target machine):
 
 ```bash
 # Optional: Install PyInstaller manually or let the script handle it
 python generate_build.py
 ```
 
+The build script will:
+1. Download the appropriate FFmpeg binary for your platform (Windows/macOS/Linux)
+2. Bundle FFmpeg into the executable
+3. Configure yt-dlp to use the bundled FFmpeg automatically
+
 The executable will be located in the `dist/` folder.
+
+**Note**: First build may take longer due to FFmpeg download (~100MB). Subsequent builds reuse the cached FFmpeg in `resources/ffmpeg/`.
 
 ## Configuration
 
@@ -150,7 +158,7 @@ The application settings are organized into four tabs:
 1. **General**: Default download folder, filename pattern, theme (Auto/Light/Dark), language
 2. **Downloads**: Concurrent downloads limit, retry attempts, default quality/format, subtitle options
 3. **Authentication**: Browser cookie source for accessing restricted content, per-site cookie settings
-4. **Advanced**: FFmpeg path configuration, custom data and log directories
+4. **Advanced**: FFmpeg path configuration (auto-detects bundled FFmpeg), custom data and log directories
 
 ### Configuration File
 
@@ -223,6 +231,7 @@ ProExtractor/
 │   ├── constants.py     # Constants and enums
 │   ├── config.py        # Configuration management
 │   ├── downloader.py    # Download engine with yt-dlp
+│   ├── ffmpeg_manager.py # FFmpeg path resolution for bundled/system installs
 │   ├── worker.py        # Thread workers for async operations
 │   ├── storage.py       # History persistence with debounced saves
 │   └── utils.py         # Shared utilities
