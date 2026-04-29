@@ -52,7 +52,7 @@ class FFmpegManager:
         """Get FFmpeg from bundled resources (PyInstaller)."""
         # PyInstaller extracts to _MEIPASS
         if hasattr(sys, '_MEIPASS'):
-            base_path = Path(sys._MEIPASS)
+            base_path = Path(sys._MEIPASS) / 'resources'
         else:
             # Development mode - check resources/ffmpeg directory
             base_path = Path(__file__).parent.parent / 'resources'

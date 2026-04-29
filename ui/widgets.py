@@ -804,6 +804,7 @@ class TaskItem(QFrame):
     retried = Signal(str)
     deleted = Signal(str)
     opened = Signal(str)
+    help_requested = Signal(str, str)  # task_id, error_message
 
     def __init__(self, task_id: str, title: str, source: str = "", thumb_path: str = ""):
         super().__init__()
@@ -930,9 +931,20 @@ class TaskItem(QFrame):
         self.delete_btn = QPushButton()
         self.delete_btn.setIcon(get_icon("close.png", icon_color))
         
+        # Help button for failed downloads
+        self.help_btn = QPushButton()
+        self.help_btn.setIcon(get_icon("help.png", "#f59e0b"))  # Orange help icon
+        self.help_btn.setIconSize(QSize(14, 14))
+        self.help_btn.setFixedSize(29, 29)
+        self.help_btn.setStyleSheet("QPushButton { border-radius: 4px; font-size: 14px; }")
+        self.help_btn.setToolTip("Get help with this error")
+        self.help_btn.clicked.connect(self._on_help_clicked)
+        self.help_btn.hide()  # Hidden by default
+        
         # Store icon color reference for theme updates
         self._icon_color = icon_color
         self._button_text_color = colors['button_text']
+        self._error_message = ""  # Store error for help dialog
         
         self.pause_btn.setIconSize(QSize(14, 14))
         self.resume_btn.setIconSize(QSize(14, 14))
@@ -951,7 +963,7 @@ class TaskItem(QFrame):
             # Remove hard-coded style - will use stylesheet
             btn.setStyleSheet("QPushButton { border-radius: 4px; font-size: 14px; }")
             
-        for btn in [self.pause_btn, self.resume_btn, self.open_btn, self.delete_btn]:
+        for btn in [self.pause_btn, self.resume_btn, self.open_btn, self.delete_btn, self.help_btn]:
             self.actions_layout.addWidget(btn)
             
         self.pause_btn.clicked.connect(lambda: self.paused.emit(self.task_id))
@@ -1001,6 +1013,7 @@ class TaskItem(QFrame):
         self.resume_btn.hide()
         self.open_btn.hide()
         self.progress_bar.hide()
+        self.help_btn.hide()
         
         if self.current_status == DownloadStatus.PROCESSING.value:
             self.pause_btn.show()
@@ -1062,6 +1075,7 @@ class TaskItem(QFrame):
             self.resume_btn.show()
             self.resume_btn.setIcon(get_icon("retry.png", self._icon_color))
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
+            self.help_btn.show()  # Show help button for failed tasks
             self.status_badge.setText("FAILED")
             self.status_badge.setStyleSheet("color: #f43f5e;")
 
@@ -1101,10 +1115,16 @@ class TaskItem(QFrame):
 
     def set_error(self, error: str):
         self.current_status = DownloadStatus.FAILED.value
+        self._error_message = error  # Store error for help dialog
         self.status_badge.setText("ERROR")
         self.speed_label.setText(error)
         self.speed_label.setStyleSheet("color: #f43f5e; font-size: 9px;")
         self._update_ui_state()
+    
+    def _on_help_clicked(self):
+        """Emit signal to request help for this task's error."""
+        if self._error_message:
+            self.help_requested.emit(self.task_id, self._error_message)
 
     def reset(self, task_id: str, title: str, source: str = "", thumb_path: str = ""):
         """Reset widget for reuse in pool (memory optimization).
@@ -1116,6 +1136,7 @@ class TaskItem(QFrame):
         self.current_status = "pending"
         self.current_msg = "DOWNLOADING"
         self.current_progress = 0.0
+        self._error_message = ""  # Clear stale error from previous task
 
         # Reset UI elements with defensive checks for deleted C++ objects
         try:

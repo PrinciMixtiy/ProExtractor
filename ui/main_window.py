@@ -30,6 +30,7 @@ from styles import get_stylesheet, get_theme_colors
 from ui.icons import get_icon
 from ui.widgets import (VideoInfoCard, StreamOptionsCard, TaskItem,
                                 PlaylistItemWidget, VirtualPlaylistWidget, PaginationWidget)
+from ui.help_dialog import show_troubleshooting, show_log_viewer, TroubleshootingDialog, show_legal
 import uuid
 import requests
 import re
@@ -144,8 +145,9 @@ class ThumbnailWorker(QThread):
                         with open(thumb_path, 'wb') as f:
                             f.write(resp.content)
                         self.finished_one.emit(task_id, thumb_path)
-                except:
-                    pass
+                except Exception as e:
+                    logging.getLogger(__name__).debug(
+                        f"Thumbnail fetch failed for {task_id}: {e}")
 
 
 class MainWindow(QMainWindow):
@@ -763,6 +765,28 @@ class MainWindow(QMainWindow):
             self.pages.setCurrentIndex(0)
         elif page_name == "settings":
             self.pages.setCurrentIndex(1)
+        elif page_name == "help":
+            # Show log viewer dialog instead of a page
+            show_log_viewer(self)
+            # Uncheck the help button and restore previous selection
+            self.sidebar.btn_help.setChecked(False)
+            # Re-check the current page's button
+            current_page = self.pages.currentIndex()
+            if current_page == 0:
+                self.sidebar.btn_home.setChecked(True)
+            elif current_page == 1:
+                self.sidebar.btn_settings.setChecked(True)
+        elif page_name == "legal":
+            # Show legal/compliance dialog
+            show_legal(self)
+            # Uncheck the legal button and restore previous selection
+            self.sidebar.btn_legal.setChecked(False)
+            # Re-check the current page's button
+            current_page = self.pages.currentIndex()
+            if current_page == 0:
+                self.sidebar.btn_home.setChecked(True)
+            elif current_page == 1:
+                self.sidebar.btn_settings.setChecked(True)
 
     def _on_settings_changed(self):
         """Handle settings changes."""
@@ -902,8 +926,10 @@ class MainWindow(QMainWindow):
             # Check if URL looks like a single video (has path or query suggesting single item)
             # but backend detected it as a playlist
             looks_like_single = (
-                parsed.path.strip("/") or  # Has a path component
-                parsed.query  # Has query params
+                "watch" in parsed.path or
+                "youtu.be" in parsed.netloc or
+                "shorts" in parsed.path or
+                ("v=" in parsed.query)
             )
 
             # For URLs that look like single items but are playlists, offer choice
@@ -913,8 +939,7 @@ class MainWindow(QMainWindow):
                 msg.setText(f"This URL contains a playlist with {len(info['playlist_entries'])} items.")
                 msg.setInformativeText("What would you like to extract?")
 
-                btn_playlist = msg.addButton(
-                    "Full Playlist", QMessageBox.ActionRole)
+                msg.addButton("Full Playlist", QMessageBox.ActionRole)
                 btn_video = msg.addButton("First Video Only", QMessageBox.ActionRole)
                 msg.setStandardButtons(QMessageBox.Cancel)
 
@@ -1022,8 +1047,10 @@ class MainWindow(QMainWindow):
         self._stop_analyze_spinner()
         self.analyze_btn.setEnabled(True)
         self.analyze_btn.setText(self._analyze_btn_original_text)
-        QMessageBox.critical(self, "Extraction Error",
-                             f"Failed to get video info:\n{err}")
+        
+        # Show troubleshooting dialog with the raw backend error so pattern
+        # matching in ErrorAnalyzer works correctly (no decorating prefix).
+        show_troubleshooting(self, err, context="Video Info Fetch Failed:")
 
     @Slot(dict)
     def _on_download(self, options):
@@ -1452,8 +1479,9 @@ class MainWindow(QMainWindow):
         # Start with the base name
         candidate_base = base
         n = 1
+        MAX_ATTEMPTS = 1000  # Safety cap to prevent infinite loop on filesystem edge cases
 
-        while True:
+        while n <= MAX_ATTEMPTS:
             candidate_filename = f"{candidate_base}{ext}"
             # Check both active downloads and existing files on disk
             if candidate_filename not in active_in_dest and not os.path.exists(os.path.join(dest, candidate_filename)):
@@ -1463,6 +1491,13 @@ class MainWindow(QMainWindow):
             # Try next number
             candidate_base = f"{base} ({n})"
             n += 1
+
+        # Fallback: use a UUID suffix if we somehow exhausted all attempts
+        import uuid as _uuid
+        fallback = f"{base}_{_uuid.uuid4().hex[:8]}"
+        active_in_dest.add(f"{fallback}{ext}")
+        self.logger.warning(f"Could not find unique filename for '{base}{ext}' after {MAX_ATTEMPTS} attempts, using '{fallback}{ext}'")
+        return fallback
 
     def _release_filename(self, dest: str, filename: str):
         """Release a filename reservation when download completes."""
@@ -1665,19 +1700,19 @@ class MainWindow(QMainWindow):
         # Log download error
         self.logger.error(f"Download error: {task_id} -> {err}")
 
-        # Re-ordering: keep active items on page 1.
-        if self.pagination_widget.current_page == 0:
-            # Avoid full rebuild during signal bursts; update only this row.
-            self._refresh_task_in_current_page(task_id)
-        else:
-            # Targeted refresh: only update this specific task in current page
-            self._refresh_task_in_current_page(task_id)
+        self._refresh_task_in_current_page(task_id)
 
         # Check if auto-resume is enabled
         auto_resume = config.get('downloads.auto_resume', True)
         if auto_resume and err != "Cancelled":
-            # Schedule auto-resume after a delay
-            QTimer.singleShot(5000, lambda: self._auto_resume_task(task_id))
+            item = self.history_manager.get_by_id(task_id)
+            auto_resume_count = item.get("auto_resume_count", 0) if item else 0
+            if auto_resume_count < 3:
+                self.history_manager.update_task(task_id, {"auto_resume_count": auto_resume_count + 1})
+                # Schedule auto-resume after a delay
+                QTimer.singleShot(5000, lambda: self._auto_resume_task(task_id))
+            else:
+                self.logger.warning(f"Task {task_id} failed after 3 auto-resumes. Giving up.")
 
     def _on_download_cancelled(self, task_id):
         """Handle download cancellation from worker process."""
@@ -1685,12 +1720,7 @@ class MainWindow(QMainWindow):
         if widget:
             widget.set_status("Paused")
         self.history_manager.update_task(task_id, {"status": DownloadStatus.PAUSED.value})
-
-        # Re-ordering: keep active items on page 1.
-        if self.pagination_widget.current_page == 0:
-            self._refresh_task_in_current_page(task_id)
-        else:
-            self._refresh_task_in_current_page(task_id)
+        self._refresh_task_in_current_page(task_id)
 
     def _auto_resume_task(self, task_id):
         """Automatically resume a failed download if auto-resume is enabled."""
@@ -1702,6 +1732,17 @@ class MainWindow(QMainWindow):
 
         auto_resume = config.get('downloads.auto_resume', True)
         if not auto_resume:
+            return
+
+        # Don't auto-retry unrecoverable errors (DRM, geo-blocked, etc.)
+        error_msg = item.get("error", "").lower()
+        unrecoverable_patterns = [
+            "drm", "drm protected", "geo-blocked", "geo restricted",
+            "not available", "removed", "private", "login", "password",
+            "members only", "subscription", "premium"
+        ]
+        if any(pattern in error_msg for pattern in unrecoverable_patterns):
+            self.logger.info(f"Skipping auto-resume for {task_id}: unrecoverable error")
             return
 
         # Resume the task
@@ -1742,8 +1783,9 @@ class MainWindow(QMainWindow):
             widget = self.visible_widgets.get(task_id)
             if widget:
                 widget.set_status("Paused")
-            # We don't remove from active_workers yet, _cleanup_worker will handle it
-            # and it will trigger _process_queue which will skip this task if its in pending
+            # Immediately remove from active_workers to free up a concurrent slot
+            # _cleanup_worker will handle the rest of the cleanup and trigger queue processing
+            self._cleanup_worker(task_id)
 
     def _on_open_task(self, task_id):
         # Memory optimization: use get_by_id for single lookup
@@ -1813,15 +1855,15 @@ class MainWindow(QMainWindow):
         else:
             self._refresh_task_in_current_page(task_id)
 
-    def _progress_callback(self, p, speed, eta):
-        # Ensure values are not None to prevent _pythonToCppCopy errors
-        safe_p = float(p) if p is not None else 0.0
-        safe_speed = float(speed) if speed is not None else 0.0
-        safe_eta = float(eta) if eta is not None else 0.0
-        self.progress.emit(safe_p, safe_speed, safe_eta)
-
     def _on_retry_task(self, task_id):
         self._on_resume_task(task_id)
+
+    def _on_help_task(self, task_id: str, error_message: str):
+        """Show troubleshooting dialog for a failed task."""
+        # Show troubleshooting dialog and check if user wants to retry
+        should_retry = show_troubleshooting(self, error_message, context="Download Failed:")
+        if should_retry:
+            self._on_retry_task(task_id)
 
     def _retry_all_failed(self):
         """Retry all failed downloads in the history list."""
@@ -1844,10 +1886,12 @@ class MainWindow(QMainWindow):
             self._on_resume_task(item['task_id'])
 
     def _on_delete_task(self, task_id):
-        # 1. Stop if running
+        # 1. Stop if running and cleanup to free the slot
         if task_id in self.active_workers:
             worker = self.active_workers[task_id]
             worker.cancel()
+            # Immediately cleanup to free up concurrent slot
+            self._cleanup_worker(task_id)
 
         # 2. Remove from pending and queued
         self.pending_tasks = [t for t in self.pending_tasks if t[0] != task_id]
@@ -1983,15 +2027,7 @@ class MainWindow(QMainWindow):
             if not history_items:
                 return
 
-            start_idx = 0
-            end_idx = len(history_items)
-
-            if start_idx >= len(history_items) or start_idx < 0:
-                return
-
-            page_items = history_items[start_idx:end_idx]
-
-            for item in page_items:
+            for item in history_items:
                 task_id = item.get("task_id")
                 if not task_id:
                     continue
@@ -2011,6 +2047,7 @@ class MainWindow(QMainWindow):
                     task_widget.retried.connect(self._on_retry_task)
                     task_widget.deleted.connect(self._on_delete_task)
                     task_widget.opened.connect(self._on_open_task)
+                    task_widget.help_requested.connect(self._on_help_task)
                     self.theme_changed.connect(task_widget.update_theme)
                     task_widget.signals_connected = True
 
@@ -2090,14 +2127,17 @@ class MainWindow(QMainWindow):
                       for h in history_before if h.get("task_id")}
 
         if mode == "all":
-            # Cancel active downloads to match previous behavior ("all" can delete active too).
-            for task_id, worker in list(self.active_workers.items()):
+            # Cancel and cleanup active downloads immediately to free slots.
+            active_task_ids = list(self.active_workers.keys())
+            for task_id in active_task_ids:
                 try:
+                    worker = self.active_workers[task_id]
                     worker.cancel()
+                    self._cleanup_worker(task_id)
                 except Exception:
                     pass
 
-            # Clear in-memory queues; active workers will finish/cancel on their own.
+            # Clear in-memory queues.
             self.pending_tasks.clear()
             self.queued_tasks.clear()
             self.pending_task_ids.clear()

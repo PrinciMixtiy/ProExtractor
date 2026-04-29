@@ -11,6 +11,7 @@ from multiprocessing import Process, Queue, Event
 import logging
 import threading
 import queue as queue_module
+import time
 import traceback
 from typing import Optional
 
@@ -114,11 +115,15 @@ class DownloadWorker(QObject):
 
     def _monitor_queue(self) -> None:
         """Monitor result queue and emit Qt signals."""
+        last_progress_time = time.time()
         while not self._is_finished:
             try:
                 # Use timeout to allow checking for process death
                 msg = self._result_queue.get(timeout=0.1)
                 msg_type = msg[0]
+                
+                # Reset progress timer on any message
+                last_progress_time = time.time()
                 
                 if msg_type == 'progress':
                     _, p, speed, eta = msg
@@ -156,6 +161,16 @@ class DownloadWorker(QObject):
                         self._is_finished = True
                         logger.error(f"Task {self.task_id} process terminated unexpectedly")
                         self.error.emit(self.task_id, "Process terminated unexpectedly")
+                    break
+                
+                # Check for timeout - if no progress for 2 minutes, consider stuck
+                if time.time() - last_progress_time > 30:  # 2 minutes
+                    if not self._is_finished:
+                        self._is_finished = True
+                        logger.error(f"Task {self.task_id} timed out (no progress for 2 minutes)")
+                        self.error.emit(self.task_id, "Download timed out - no progress for 2 minutes")
+                        # Try to cancel the stuck process
+                        self.cancel()
                     break
 
     def is_running(self) -> bool:

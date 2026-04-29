@@ -115,10 +115,15 @@ class DesktopDownloader:
         """Check if FFmpeg has a specific encoder available."""
         if encoder_name in self._encoder_cache:
             return self._encoder_cache[encoder_name]
+            
+        ffmpeg_path = ffmpeg_manager.get_ffmpeg_path()
+        if not ffmpeg_path:
+            return False
+            
         import subprocess
         try:
             # Check for the encoder in the list of available encoders
-            result = subprocess.run(['ffmpeg', '-encoders'],
+            result = subprocess.run([ffmpeg_path, '-encoders'],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     text=True,
@@ -259,6 +264,9 @@ class DesktopDownloader:
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
+                if info is None:
+                    raise InvalidURLException("Failed to extract video info. The video might be unavailable or invalid.")
+
                 if 'list=' in url and info.get('_type') != 'playlist' and 'entries' not in info:
                     try:
                         list_id = url.split('list=')[1].split('&')[0]
@@ -306,12 +314,12 @@ class DesktopDownloader:
                 playlist_entries = []
                 if is_playlist and info.get("entries"):
                     for i, entry in enumerate(info.get("entries", [])):
-                        url = entry.get('url', '').strip() if entry else ''
-                        if entry and url:
+                        entry_url = entry.get('url', '').strip() if entry else ''
+                        if entry and entry_url:
                             playlist_entries.append({
                                 "id": entry.get('id'),
                                 "title": entry.get('title'),
-                                "url": url,
+                                "url": entry_url,
                                 "duration": entry.get('duration'),
                                 "thumbnail": entry.get('thumbnail'),
                                 "index": i + 1
@@ -377,7 +385,8 @@ class DesktopDownloader:
                     if status_callback:
                         status_callback(
                             f"Retrying... (attempt {attempt + 1}/{max_retries + 1})")
-                    time.sleep(retry_delay * attempt)  # Exponential backoff
+                    # retry_delay is stored in milliseconds; convert to seconds for time.sleep()
+                    time.sleep((retry_delay / 1000.0) * attempt)  # Exponential backoff
 
                 return self.download(
                     url, output_path, quality, format, audio_only, embed_thumbnails,
@@ -400,6 +409,9 @@ class DesktopDownloader:
                 if cancellation_check and cancellation_check():
                     raise DownloadCancelledException(
                         "Download cancelled during retry")
+
+        # Should never reach here (loop always raises or returns), but be explicit.
+        raise DownloadFailedException("Download failed: exhausted all retries")
 
     def download(self, url: str,
                  output_path: str,
@@ -495,9 +507,13 @@ class DesktopDownloader:
                 'fragment_retries': FRAGMENT_RETRIES,
                 'timeout': config.get('downloads.timeout', 30),
                 'socket_timeout': SOCKET_TIMEOUT,
-                'merge_output_format': effective_merge_format if not audio_only else None,
                 'logger': SimpleDownloadLogger(),
             }
+
+            # Only set merge_output_format for video downloads; omitting the key
+            # entirely for audio-only avoids yt-dlp mishandling a None value.
+            if not audio_only:
+                options['merge_output_format'] = effective_merge_format
 
             # Apply FFmpeg location if available
             ffmpeg_opts = ffmpeg_manager.get_ytdlp_options()
@@ -566,7 +582,14 @@ class DesktopDownloader:
                 info = ydl.extract_info(url)
                 actual_filepath = info.get('requested_downloads', [{}])[0].get(
                     'filepath') or ydl.prepare_filename(info)
-                return os.path.abspath(actual_filepath)
+                actual_filepath = os.path.abspath(actual_filepath)
+                # Verify file was actually downloaded (handles cases like DRM errors)
+                if not os.path.exists(actual_filepath):
+                    raise DownloadFailedException(
+                        "Download failed: File was not created. "
+                        "The video may be DRM protected or unavailable."
+                    )
+                return actual_filepath
 
         except DownloadCancelledException:
             raise

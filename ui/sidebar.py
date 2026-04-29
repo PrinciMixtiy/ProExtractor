@@ -117,8 +117,14 @@ class Sidebar(QFrame):
         self.btn_settings = SidebarButton("settings.png", "SETTINGS")
         self.btn_settings.clicked.connect(lambda: self._on_nav_clicked("settings"))
         
+        self.btn_help = SidebarButton("user-question.png", "HELP")
+        self.btn_help.clicked.connect(lambda: self._on_nav_clicked("help"))
+        
+        self.btn_legal = SidebarButton("info.png", "LEGAL")
+        self.btn_legal.clicked.connect(lambda: self._on_nav_clicked("legal"))
+        
         # Group for exclusive selection
-        self.buttons = [self.btn_home, self.btn_settings]
+        self.buttons = [self.btn_home, self.btn_settings, self.btn_help, self.btn_legal]
         for btn in self.buttons:
             btn.set_collapsed(True)
             self.nav_layout.addWidget(btn)
@@ -167,11 +173,13 @@ class Sidebar(QFrame):
         self.version_label.setVisible(not self.is_collapsed)
 
     def _on_nav_clicked(self, page_name: str):
-        # Exclusive selection logic
-        for btn in self.buttons:
-            btn.setChecked(False)
-            
+        # Exclusive selection logic (except for help which opens a dialog)
+        if page_name != "help":
+            for btn in self.buttons:
+                btn.setChecked(False)
+                
         if page_name == "home": self.btn_home.setChecked(True)
         elif page_name == "settings": self.btn_settings.setChecked(True)
+        # Help button doesn't stay checked - it opens a dialog
         
         self.page_changed.emit(page_name)

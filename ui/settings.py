@@ -26,6 +26,7 @@ from core.constants import (
 )
 from ui.icons import get_icon
 from styles import get_theme_colors
+from ui.help_dialog import show_settings_help
 
 
 class SettingsPage(QWidget):
@@ -100,15 +101,27 @@ class SettingsPage(QWidget):
         # Apply button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        
+
+        # Help button - opens contextual help for current tab
+        self.help_btn = QPushButton()
+        self.help_btn.setFixedSize(32, 32)
+        self.help_btn.setIcon(get_icon("question.png", get_theme_colors()['text_primary']))
+        self.help_btn.setIconSize(QSize(16, 16))
+        self.help_btn.setCursor(Qt.PointingHandCursor)
+        self.help_btn.setToolTip("Show help for current settings tab")
+        self.help_btn.clicked.connect(self._show_help)
+        button_layout.addWidget(self.help_btn)
+
+        button_layout.addSpacing(16)
+
         self.reset_btn = QPushButton("Reset to Defaults")
         self.reset_btn.clicked.connect(self._reset_settings)
         button_layout.addWidget(self.reset_btn)
-        
+
         self.apply_btn = QPushButton("Apply")
         self.apply_btn.clicked.connect(self._apply_settings)
         button_layout.addWidget(self.apply_btn)
-        
+
         layout.addLayout(button_layout)
     
     def _connect_signals(self):
@@ -126,10 +139,17 @@ class SettingsPage(QWidget):
         index = self.tab_buttons.id(button)
         self.stacked_widget.setCurrentIndex(index)
 
+    def _show_help(self):
+        """Show contextual help for the current settings tab."""
+        current_index = self.stacked_widget.currentIndex()
+        show_settings_help(self, current_index)
+
     def update_theme(self):
         """Update theme for all settings sections."""
+        colors = get_theme_colors()
         self.general_section.update_theme()
         self.advanced_section.update_theme()
+        self.help_btn.setIcon(get_icon("question.png", colors['text_primary']))
 
     def _on_setting_changed(self):
         """Handle setting changes."""

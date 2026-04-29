@@ -7,18 +7,18 @@ background saving to prevent UI freezes during rapid updates, such as when
 processing large playlists.
 """
 
+from .constants import DATA_DIR_NAME
 import json
 import logging
 import os
 import sys
 import threading
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from core.config import config
 
 logger = logging.getLogger(__name__)
 
-from .constants import DATA_DIR_NAME
 
 if getattr(sys, 'frozen', False):
     # Running in PyInstaller bundle - use executable directory
@@ -30,22 +30,23 @@ else:
 
 _DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, DATA_DIR_NAME)
 
+
 class HistoryManager:
     """Manages persistent history for the desktop application."""
-    
+
     def __init__(self, storage_path: str = None):
         # Use configured data directory or default absolute path
         data_dir = config.get('paths.data_dir') or _DEFAULT_DATA_DIR
         if storage_path is None:
             storage_path = os.path.join(data_dir, 'history.json')
-        
+
         self.storage_path = storage_path
         # Ensure directory exists
         storage_dir = os.path.dirname(self.storage_path)
         if storage_dir:
             os.makedirs(storage_dir, exist_ok=True)
         self.history: List[Dict[str, Any]] = self._load()
-        
+
         # Debounced background saving to avoid UI freezes.
         self._lock = threading.RLock()
         self._dirty = False
@@ -62,10 +63,12 @@ class HistoryManager:
             try:
                 with open(self.storage_path, 'w', encoding='utf-8') as f:
                     json.dump(self.history, f, indent=4, default=str)
-                logger.debug(f"History saved to {self.storage_path} ({len(self.history)} items)")
+                logger.debug(
+                    f"History saved to {self.storage_path} ({len(self.history)} items)")
             except IOError as e:
                 # Don't crash the app if persistence fails.
-                logger.error(f"Failed to save history to {self.storage_path}: {e}")
+                logger.error(
+                    f"Failed to save history to {self.storage_path}: {e}")
             finally:
                 # The timer is one-shot; clear it so future updates can schedule a new save.
                 self._save_timer = None
@@ -73,7 +76,7 @@ class HistoryManager:
     def _schedule_save(self, immediate: bool = False):
         with self._lock:
             self._dirty = True
-            
+
             if immediate:
                 if self._save_timer is not None:
                     try:
@@ -90,7 +93,8 @@ class HistoryManager:
             # - Subsequent updates just mark dirty.
             # This avoids timer churn (important during large playlist starts).
             if self._save_timer is None:
-                self._save_timer = threading.Timer(self._save_delay_s, self._write_to_disk)
+                self._save_timer = threading.Timer(
+                    self._save_delay_s, self._write_to_disk)
                 self._save_timer.daemon = True
                 self._save_timer.start()
 
@@ -101,18 +105,22 @@ class HistoryManager:
     def _load(self) -> List[Dict[str, Any]]:
         """Load history from JSON file."""
         if not os.path.exists(self.storage_path):
-            logger.info(f"History file not found at {self.storage_path}, starting fresh")
+            logger.info(
+                f"History file not found at {self.storage_path}, starting fresh")
             return []
         try:
             with open(self.storage_path, 'r', encoding='utf-8') as f:
                 history_data = json.load(f)
-                logger.info(f"History loaded from {self.storage_path} ({len(history_data)} items)")
+                logger.info(
+                    f"History loaded from {self.storage_path} ({len(history_data)} items)")
                 return history_data
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in history file {self.storage_path}: {e}")
+            logger.error(
+                f"Invalid JSON in history file {self.storage_path}: {e}")
             return []
         except IOError as e:
-            logger.error(f"Failed to read history file {self.storage_path}: {e}")
+            logger.error(
+                f"Failed to read history file {self.storage_path}: {e}")
             return []
 
     def save(self):
@@ -128,11 +136,11 @@ class HistoryManager:
                     item.update(data)
                     self._schedule_save()
                     return
-            
+
             # Add timestamp if not present
             if "created_at" not in data:
                 data["created_at"] = datetime.now().isoformat()
-            
+
             self.history.insert(0, data)  # Newest first
             self._schedule_save()
 
@@ -148,13 +156,15 @@ class HistoryManager:
     def delete_task(self, task_id: str):
         """Remove a task from history."""
         with self._lock:
-            self.history = [h for h in self.history if h.get("task_id") != task_id]
+            self.history = [
+                h for h in self.history if h.get("task_id") != task_id]
             self._schedule_save()
 
     def delete_by_status(self, status: str):
         """Remove all tasks with a specific status."""
         with self._lock:
-            self.history = [h for h in self.history if h.get("status") != status]
+            self.history = [
+                h for h in self.history if h.get("status") != status]
             # Destructive action: flush immediately.
             self._schedule_save(immediate=True)
 
@@ -168,8 +178,9 @@ class HistoryManager:
             self._schedule_save(immediate=True)
 
     def get_all(self) -> List[Dict[str, Any]]:
-        """Return all history items."""
-        return self.history
+        """Return all history items as a snapshot (thread-safe shallow copy)."""
+        with self._lock:
+            return list(self.history)
 
     def get_count(self) -> int:
         """Return total count of history items (memory-efficient)."""
