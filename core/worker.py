@@ -125,33 +125,39 @@ class DownloadWorker(QObject):
                 # Reset progress timer on any message
                 last_progress_time = time.time()
                 
-                if msg_type == 'progress':
-                    _, p, speed, eta = msg
-                    self.progress.emit(self.task_id, p, speed, eta)
-                elif msg_type == 'status':
-                    _, status_msg = msg
-                    logger.debug(f"Task {self.task_id} status: {status_msg}")
-                    self.status.emit(self.task_id, status_msg)
-                elif msg_type == 'finished':
-                    _, path = msg
-                    self._is_finished = True
-                    logger.info(f"Task {self.task_id} finished successfully: {path}")
-                    self.finished.emit(self.task_id, path)
-                    break
-                elif msg_type == 'error':
-                    _, error_msg = msg
-                    self._is_finished = True
-                    if "cancelled" in error_msg.lower():
+                try:
+                    if msg_type == 'progress':
+                        _, p, speed, eta = msg
+                        self.progress.emit(self.task_id, p, speed, eta)
+                    elif msg_type == 'status':
+                        _, status_msg = msg
+                        logger.debug(f"Task {self.task_id} status: {status_msg}")
+                        self.status.emit(self.task_id, status_msg)
+                    elif msg_type == 'finished':
+                        _, path = msg
+                        self._is_finished = True
+                        logger.info(f"Task {self.task_id} finished successfully: {path}")
+                        self.finished.emit(self.task_id, path)
+                        break
+                    elif msg_type == 'error':
+                        _, error_msg = msg
+                        self._is_finished = True
+                        if "cancelled" in error_msg.lower():
+                            logger.info(f"Task {self.task_id} was cancelled")
+                            self.cancelled.emit(self.task_id)
+                        else:
+                            logger.error(f"Task {self.task_id} failed: {error_msg}")
+                            self.error.emit(self.task_id, error_msg)
+                        break
+                    elif msg_type == 'cancelled':
+                        self._is_finished = True
                         logger.info(f"Task {self.task_id} was cancelled")
                         self.cancelled.emit(self.task_id)
-                    else:
-                        logger.error(f"Task {self.task_id} failed: {error_msg}")
-                        self.error.emit(self.task_id, error_msg)
-                    break
-                elif msg_type == 'cancelled':
+                        break
+                except RuntimeError:
+                    # Qt object was deleted before the monitor thread finished —
+                    # this is harmless; just stop emitting and exit.
                     self._is_finished = True
-                    logger.info(f"Task {self.task_id} was cancelled")
-                    self.cancelled.emit(self.task_id)
                     break
                     
             except queue_module.Empty:
@@ -160,7 +166,10 @@ class DownloadWorker(QObject):
                     if not self._is_finished:
                         self._is_finished = True
                         logger.error(f"Task {self.task_id} process terminated unexpectedly")
-                        self.error.emit(self.task_id, "Process terminated unexpectedly")
+                        try:
+                            self.error.emit(self.task_id, "Process terminated unexpectedly")
+                        except RuntimeError:
+                            pass
                     break
                 
                 # Check for timeout - if no progress for 2 minutes, consider stuck
@@ -168,7 +177,10 @@ class DownloadWorker(QObject):
                     if not self._is_finished:
                         self._is_finished = True
                         logger.error(f"Task {self.task_id} timed out (no progress for 2 minutes)")
-                        self.error.emit(self.task_id, "Download timed out - no progress for 2 minutes")
+                        try:
+                            self.error.emit(self.task_id, "Download timed out - no progress for 2 minutes")
+                        except RuntimeError:
+                            pass
                         # Try to cancel the stuck process
                         self.cancel()
                     break

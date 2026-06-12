@@ -46,6 +46,7 @@ class SimpleDownloadLogger:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__ + ".yt_dlp")
+        self.last_error: str = ''
     
     def debug(self, msg: str) -> None:
         # Filter verbose extractor messages, only show download progress
@@ -57,6 +58,7 @@ class SimpleDownloadLogger:
     
     def error(self, msg: str) -> None:
         self.logger.error(msg)
+        self.last_error = msg
 
 
 class DownloadFailedException(Exception):
@@ -243,6 +245,7 @@ class DesktopDownloader:
             timeout = config.get('downloads.timeout', 30)
             retries = config.get('downloads.retries_on_failure', 5)
 
+            ytdlp_logger = SimpleDownloadLogger()
             ydl_opts = {
                 'retries': retries,
                 'fragment_retries': FRAGMENT_RETRIES,
@@ -252,10 +255,18 @@ class DesktopDownloader:
                 'ignoreerrors': True,
                 'noplaylist': False,
                 'yes_playlist': True,
-                'logger': SimpleDownloadLogger(),
+                'logger': ytdlp_logger,
                 'quiet': True,
                 # Speed up playlist info extraction - don't fetch full video details for each entry
                 'extract_flat': True,
+                # Use web_embedded first: it often bypasses strict DASH hiding/throttling
+                # that the standard web client suffers from. Fallback to android/ios.
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web_embedded', 'android', 'ios', 'web'],
+                        'remote_components': ['ejs:github']
+                    }
+                },
             }
 
             # Apply browser cookies based on per-domain auth settings
@@ -265,7 +276,18 @@ class DesktopDownloader:
                 info = ydl.extract_info(url, download=False)
 
                 if info is None:
-                    raise InvalidURLException("Failed to extract video info. The video might be unavailable or invalid.")
+                    # Surface a specific error if yt-dlp rejected the URL due to DRM
+                    last_err = ytdlp_logger.last_error
+                    if 'DRM' in last_err or 'drm' in last_err.lower():
+                        raise InvalidURLException(
+                            "This site uses DRM protection and cannot be downloaded.\n"
+                            "Crunchyroll and similar streaming services encrypt their content "
+                            "with Widevine DRM, which is not supported by yt-dlp."
+                        )
+                    raise InvalidURLException(
+                        "Failed to extract video info. "
+                        + (last_err.strip() or "The video might be unavailable or the URL is invalid.")
+                    )
 
                 if 'list=' in url and info.get('_type') != 'playlist' and 'entries' not in info:
                     try:
@@ -508,6 +530,17 @@ class DesktopDownloader:
                 'timeout': config.get('downloads.timeout', 30),
                 'socket_timeout': SOCKET_TIMEOUT,
                 'logger': SimpleDownloadLogger(),
+                # Prioritize web_embedded and android for downloads. 
+                # android client: no PO Token required for some formats, but web_embedded
+                # is more reliable for seeing all resolutions.
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web_embedded', 'android', 'web'],
+                        'remote_components': ['ejs:github']
+                    }
+                },
+                # NEW STRATEGY: Prioritize Resolution first, then TV compatibility (H.264/AAC).
+                'format_sort': ['res', 'ext:mp4:m4a', 'vcodec:h264', 'codec:a:m4a'],
             }
 
             # Only set merge_output_format for video downloads; omitting the key
@@ -540,6 +573,8 @@ class DesktopDownloader:
             else:
                 # Extension-Agnostic Input: Allow high-res (4K/8K) WebM sources but merge to MP4.
                 if quality == "highest":
+                    # With format_sort, 'bestvideo+bestaudio' will pick the highest resolution,
+                    # favoring H.264 if multiple codecs exist at that resolution.
                     options['format'] = 'bestvideo+bestaudio/best'
                 elif quality == "lowest":
                     options['format'] = 'worstvideo+worstaudio/worst'
@@ -547,7 +582,7 @@ class DesktopDownloader:
                     raw = str(quality).rstrip('p')
                     if raw.isdigit():
                         h = raw
-                        # Prioritize resolution over source extension
+                        # Prioritize requested resolution, favoring H.264/AAC via format_sort.
                         options['format'] = (
                             f'bestvideo[height<={h}]+bestaudio'
                             f'/best[height<={h}]'
