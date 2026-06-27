@@ -850,13 +850,12 @@ class TaskItem(QFrame):
         
         self.title_label = QLabel(title)
         self.title_label.setObjectName("ItemTitle")
-        # Remove hard-coded color - will use stylesheet
         self.title_label.setStyleSheet("font-size: 11px; font-weight: 700;")
-        self.title_label.setFixedWidth(200)
-        # Elide title
-        metrics = self.title_label.fontMetrics()
-        elided = metrics.elidedText(title, Qt.ElideRight, 200)
-        self.title_label.setText(elided)
+        self.title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.title_label.setMinimumWidth(100)
+        self._raw_title = title
+        # Initial elide deferred to first resizeEvent; use a reasonable default for now
+        self.title_label.setText(title)
         meta_layout.addWidget(self.title_label)
         
         # Limit URL length to prevent UI overflow
@@ -866,8 +865,7 @@ class TaskItem(QFrame):
             display_source = display_source[:MAX_URL_LENGTH - 3] + "..."
         self.source_label = QLabel(display_source)
         self.source_label.setObjectName("ItemSubtitle")
-        # Remove hard-coded color - will use stylesheet
-        self.source_label.setStyleSheet("font-size: 9px;")
+        self.source_label.setStyleSheet("font-size: 11px;")
         meta_layout.addWidget(self.source_label)
         
         self.main_layout.addLayout(meta_layout, 4)
@@ -883,8 +881,7 @@ class TaskItem(QFrame):
         metric_layout.addWidget(self.size_label)
         
         self.speed_label = QLabel("Waiting...")
-        # Remove hard-coded color - will use stylesheet
-        self.speed_label.setStyleSheet("font-size: 9px; font-weight: 800;")
+        self.speed_label.setStyleSheet("font-size: 11px; font-weight: 500;")
         metric_layout.addWidget(self.speed_label)
         
         self.main_layout.addLayout(metric_layout, 2)
@@ -902,8 +899,8 @@ class TaskItem(QFrame):
         
         self.status_badge = QLabel("PENDING")
         self.status_badge.setAlignment(Qt.AlignCenter)
-        # Remove hard-coded color - will use stylesheet
-        self.status_badge.setStyleSheet("font-size: 8px; font-weight: 900; letter-spacing: 1px;")
+        self.status_badge.setStyleSheet("font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
+        self._status_border_color: str = ""
         status_layout.addWidget(self.status_badge)
         
         self.main_layout.addLayout(status_layout, 2)
@@ -981,15 +978,37 @@ class TaskItem(QFrame):
         icon_color = colors['text_secondary'] if colors['text_primary'] == '#0f172a' else colors['text_primary']
         self._icon_color = icon_color
         self._button_text_color = colors['button_text']
-        
+
         # Update all icons with new theme colors
         self.pause_btn.setIcon(get_icon("pause.png", icon_color))
         self.resume_btn.setIcon(get_icon("play.png", icon_color))
         self.delete_btn.setIcon(get_icon("close.png", icon_color))
         self.open_btn.setIcon(get_icon("folder.png", "#0ea5e9"))  # Keep folder icon blue
-        
+
         # Update current state icons
         self._update_ui_state()
+
+    def _update_title_elide(self):
+        available = self.title_label.width() or 200
+        self.title_label.setText(
+            self.title_label.fontMetrics().elidedText(self._raw_title, Qt.ElideRight, available)
+        )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_raw_title'):
+            self._update_title_elide()
+
+    def _set_status_border(self, color: str):
+        self._status_border_color = color
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._status_border_color:
+            painter = QPainter(self)
+            painter.fillRect(0, 0, 3, self.height(), QColor(self._status_border_color))
+            painter.end()
 
     def set_thumbnail(self, thumb_path: str):
         if thumb_path and os.path.exists(thumb_path):
@@ -1014,70 +1033,86 @@ class TaskItem(QFrame):
         self.open_btn.hide()
         self.progress_bar.hide()
         self.help_btn.hide()
-        
+        colors = get_theme_colors()
+
         if self.current_status == DownloadStatus.PROCESSING.value:
             self.pause_btn.show()
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
-            # Show the descriptive stage directly from yt-dlp
             self.status_badge.setText(self.current_msg.upper())
-            # Only move the progress bar during active downloads.
+            self.status_badge.setStyleSheet(
+                f"font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: {colors['accent']};"
+            )
             self.progress_bar.setRange(0, 100)
             self.progress_bar.show()
+            self._set_status_border(colors['accent'])
         elif self.current_status == DownloadStatus.PAUSED.value:
             self.resume_btn.show()
             self.resume_btn.setIcon(get_icon("play.png", self._icon_color))
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.status_badge.setText("PAUSED")
+            self.status_badge.setStyleSheet(
+                f"font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: {colors['text_secondary']};"
+            )
             self.speed_label.setText("Paused")
             self.progress_bar.setValue(0)
+            self._set_status_border("#64748b")
         elif self.current_status == DownloadStatus.DOWNLOADING.value:
             # Ready to start, but max_concurrent may still be saturated.
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.delete_btn.show()
             self.status_badge.setText("● QUEUED")
-            colors = get_theme_colors()
             self.status_badge.setStyleSheet(
-                f"font-size: 10px; font-weight: 900; color: {colors['accent']}; background-color: rgba(20, 184, 166, 0.1); padding: 4px 8px; border-radius: 4px;"
+                f"font-size: 11px; font-weight: 700; color: {colors['accent']}; background-color: rgba(20, 184, 166, 0.1); padding: 4px 8px; border-radius: 4px;"
             )
             self.speed_label.setText("Queued...")
             self.speed_label.show()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
+            self._set_status_border(colors['accent'])
         elif self.current_status == DownloadStatus.QUEUED.value:
             # Waiting behind capacity.
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.delete_btn.show()
             self.status_badge.setText("WAITING")
             self.status_badge.setStyleSheet(
-                f"color: {QUEUE_WAITING_COLOR}; font-size: 10px; font-weight: 900;"
+                f"color: {QUEUE_WAITING_COLOR}; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;"
             )
             self.speed_label.setText("Waiting in queue...")
             self.speed_label.show()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
+            self._set_status_border("#f59e0b")
         elif self.current_status == DownloadStatus.COMPLETED.value:
             self.open_btn.show()
             self.delete_btn.setIcon(get_icon("trash.png", self._icon_color))
             self.progress_bar.hide()
-            self.status_badge.setText("● COMPLETE")
-            colors = get_theme_colors()
-            self.status_badge.setStyleSheet(f"font-size: 10px; font-weight: 900; color: {colors['accent']}; background-color: rgba(20, 184, 166, 0.1); padding: 4px 8px; border-radius: 4px;")
+            self.status_badge.setText("● DONE")
+            self.status_badge.setStyleSheet(
+                f"font-size: 11px; font-weight: 700; color: #22c55e; background-color: rgba(34, 197, 94, 0.1); padding: 4px 8px; border-radius: 4px;"
+            )
             self.speed_label.hide()
+            self._set_status_border("#22c55e")
         elif self.current_status == "skipped":
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
             self.delete_btn.show()
             self.progress_bar.hide()
             self.status_badge.setText("SKIPPED")
-            self.status_badge.setStyleSheet("color: #f59e0b; font-size: 10px; font-weight: 900;")
+            self.status_badge.setStyleSheet(
+                "color: #f59e0b; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;"
+            )
             self.speed_label.setText("Skipped (already exists)")
             self.speed_label.show()
+            self._set_status_border("#f59e0b")
         elif self.current_status == DownloadStatus.FAILED.value:
             self.resume_btn.show()
             self.resume_btn.setIcon(get_icon("retry.png", self._icon_color))
             self.delete_btn.setIcon(get_icon("close.png", self._icon_color))
-            self.help_btn.show()  # Show help button for failed tasks
+            self.help_btn.show()
             self.status_badge.setText("FAILED")
-            self.status_badge.setStyleSheet("color: #f43f5e;")
+            self.status_badge.setStyleSheet(
+                "color: #f43f5e; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;"
+            )
+            self._set_status_border("#f43f5e")
 
     def update_progress(self, p: float, speed: float, eta: float):
         self.current_status = DownloadStatus.PROCESSING.value
@@ -1118,7 +1153,7 @@ class TaskItem(QFrame):
         self._error_message = error  # Store error for help dialog
         self.status_badge.setText("ERROR")
         self.speed_label.setText(error)
-        self.speed_label.setStyleSheet("color: #f43f5e; font-size: 9px;")
+        self.speed_label.setStyleSheet("color: #f43f5e; font-size: 11px;")
         self._update_ui_state()
     
     def _on_help_clicked(self):
@@ -1136,7 +1171,8 @@ class TaskItem(QFrame):
         self.current_status = "pending"
         self.current_msg = "DOWNLOADING"
         self.current_progress = 0.0
-        self._error_message = ""  # Clear stale error from previous task
+        self._error_message = ""
+        self._status_border_color = ""
 
         # Reset UI elements with defensive checks for deleted C++ objects
         try:
@@ -1152,9 +1188,8 @@ class TaskItem(QFrame):
 
         # Reset labels with defensive checks
         try:
-            metrics = self.title_label.fontMetrics()
-            elided = metrics.elidedText(title, Qt.ElideRight, 200)
-            self.title_label.setText(elided)
+            self._raw_title = title
+            self._update_title_elide()
         except RuntimeError:
             pass
 
@@ -1166,7 +1201,7 @@ class TaskItem(QFrame):
         try:
             self.source_label.setText(display_source)
             self.status_badge.setText("PENDING")
-            self.status_badge.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 900;")
+            self.status_badge.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
             self.size_label.setText("Unknown Size")
             self.speed_label.setText("")
             self.speed_label.setStyleSheet("")

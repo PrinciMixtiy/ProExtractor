@@ -133,7 +133,7 @@ class Sidebar(QFrame):
         self.layout.addStretch()
         
         # --- Footer Section ---
-        self.version_label = QLabel(f"v{APP_VERSION} PRECISION")
+        self.version_label = QLabel(f"v{APP_VERSION}")
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("color: #64748b; font-size: 10px; font-weight: bold; background-color: transparent; border: none;")
         self.layout.addWidget(self.version_label)

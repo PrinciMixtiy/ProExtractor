@@ -61,6 +61,8 @@ def get_theme_colors():
 def get_stylesheet():
     """Generate QSS stylesheet based on current theme."""
     colors = get_theme_colors()
+    is_dark = colors['text_primary'] == '#ffffff'
+    sidebar_hover_bg = 'rgba(255,255,255,0.10)' if is_dark else 'rgba(15,23,42,0.08)'
 
     return f"""
     QMainWindow {{
@@ -99,7 +101,7 @@ def get_stylesheet():
     }}
     
     QLineEdit:focus {{
-        border: 1px solid {colors['outer_border']};
+        border: 1px solid {colors['accent']};
     }}
     
     QLineEdit#SearchInput {{
@@ -162,7 +164,7 @@ def get_stylesheet():
         border: 1px solid {colors['outer_border']};
         color: {colors['text_primary']};
         padding: 6px 12px;
-        font-size: 9px;
+        font-size: 11px;
     }}
     
     QPushButton#SecondaryButton:hover {{
@@ -260,7 +262,7 @@ def get_stylesheet():
     }}
     
     QComboBox:focus {{
-        border: 1px solid {colors['outer_border']};
+        border: 1px solid {colors['accent']};
     }}
     
     QComboBox::drop-down {{
@@ -500,7 +502,7 @@ def get_stylesheet():
     
     #ItemSubtitle {{
         color: {colors['text_secondary']};
-        font-size: 9px;
+        font-size: 11px;
         background-color: transparent;
         border: none;
     }}
@@ -521,7 +523,7 @@ def get_stylesheet():
     
     #HistoryCard QLabel#ItemSubtitle {{
         color: {colors['text_secondary']};
-        font-size: 9px;
+        font-size: 11px;
         background-color: transparent;
         border: none;
     }}
@@ -615,7 +617,7 @@ def get_stylesheet():
     /* Labels and Headers */
     QLabel#OptionHeader {{
         font-weight: 800;
-        font-size: 9px;
+        font-size: 11px;
         color: {colors['text_secondary']};
         text-transform: uppercase;
         letter-spacing: 1.5px;
@@ -624,7 +626,7 @@ def get_stylesheet():
     
     QLabel#InfoKey {{
         color: {colors['text_secondary']};
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
     }}
@@ -654,7 +656,7 @@ def get_stylesheet():
     }}
     
     #ModernInput:focus {{
-        border: 1px solid {colors['outer_border']};
+        border: 1px solid {colors['accent']};
     }}
 
     /* Modern Selectors (ComboBox specific) */
@@ -699,7 +701,7 @@ def get_stylesheet():
     }}
     
     QPushButton#SidebarButton:hover {{
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: {sidebar_hover_bg};
         color: {colors['text_primary']};
     }}
     

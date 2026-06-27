@@ -452,11 +452,10 @@ class MainWindow(QMainWindow):
         # Update focus handlers to use current theme
         def on_input_focus_in():
             colors = get_theme_colors()
-            # Same style as unfocused - no colored border
             self.input_wrapper.setStyleSheet(f"""
                 #InputWrapper {{
                     background-color: {colors['input_bg']};
-                    border: 1px solid {colors['outer_border']};
+                    border: 1px solid {colors['accent']};
                     border-top-left-radius: 4px;
                     border-bottom-left-radius: 4px;
                     border-top-right-radius: 4px;
