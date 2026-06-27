@@ -408,7 +408,8 @@ class DesktopDownloader:
                         status_callback(
                             f"Retrying... (attempt {attempt + 1}/{max_retries + 1})")
                     # retry_delay is stored in milliseconds; convert to seconds for time.sleep()
-                    time.sleep((retry_delay / 1000.0) * attempt)  # Exponential backoff
+                    # Exponential backoff: 1x, 2x, 4x, 8x, ... the base delay
+                    time.sleep((retry_delay / 1000.0) * (2 ** (attempt - 1)))
 
                 return self.download(
                     url, output_path, quality, format, audio_only, embed_thumbnails,
@@ -615,6 +616,11 @@ class DesktopDownloader:
 
             with YoutubeDL(options) as ydl:
                 info = ydl.extract_info(url)
+                if info is None:
+                    raise DownloadFailedException(
+                        "Download failed: File was not created. "
+                        "The video may be DRM protected or unavailable."
+                    )
                 actual_filepath = info.get('requested_downloads', [{}])[0].get(
                     'filepath') or ydl.prepare_filename(info)
                 actual_filepath = os.path.abspath(actual_filepath)

@@ -8,6 +8,7 @@ filename sanitization, resource path resolution, and URL parsing.
 import re
 import sys
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 def sanitize_filename(text: str, length: int = 100) -> str:
@@ -57,6 +58,23 @@ def get_resource_path(relative_path: str) -> str:
     base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
     
     return os.path.join(base_path, relative_path)
+
+
+def get_log_dir() -> Path:
+    """Return the application log directory, respecting the paths.log_dir config override."""
+    from core.config import config
+    from core.constants import APP_NAME, LOGS_DIR_NAME
+
+    config_log_dir = config.get('paths.log_dir')
+    if config_log_dir:
+        return Path(config_log_dir)
+
+    if sys.platform == 'win32':
+        return Path(os.environ.get('APPDATA', '.')) / APP_NAME / LOGS_DIR_NAME
+    elif sys.platform == 'darwin':
+        return Path.home() / "Library" / "Logs" / APP_NAME
+    else:
+        return Path.home() / ".config" / APP_NAME / LOGS_DIR_NAME
 
 
 def extract_domain(url: str) -> str:

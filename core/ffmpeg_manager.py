@@ -25,27 +25,27 @@ class FFmpegManager:
     
     def get_ffmpeg_path(self) -> Optional[str]:
         """Get the path to FFmpeg binary, checking multiple sources."""
-        if self._ffmpeg_path:
-            return self._ffmpeg_path
-        
-        # 1. Check config setting
+        # Always re-check config first so Settings changes take effect immediately
         config_path = config.get('advanced.ffmpeg_path', '')
         if config_path and Path(config_path).exists():
-            self._ffmpeg_path = config_path
             return config_path
-        
+
+        # Cache bundled/system paths — they don't change at runtime
+        if self._ffmpeg_path:
+            return self._ffmpeg_path
+
         # 2. Check bundled FFmpeg (PyInstaller)
         bundled = self._get_bundled_ffmpeg()
         if bundled:
             self._ffmpeg_path = bundled
             return bundled
-        
+
         # 3. Check system PATH
         system_ffmpeg = self._find_in_path()
         if system_ffmpeg:
             self._ffmpeg_path = system_ffmpeg
             return system_ffmpeg
-        
+
         return None
     
     def _get_bundled_ffmpeg(self) -> Optional[str]:

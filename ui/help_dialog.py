@@ -16,6 +16,7 @@ from PySide6.QtGui import QFont
 from styles import get_theme_colors
 from ui.icons import get_icon
 from core.constants import APP_NAME
+from core.utils import get_log_dir
 from pathlib import Path
 import logging
 import sys
@@ -405,14 +406,8 @@ class TroubleshootingDialog(QDialog):
     def _open_logs(self):
         """Open logs folder in file manager or show log viewer."""
         try:
-            # Determine log directory
-            if sys.platform == 'win32':
-                log_dir = Path(os.environ.get('APPDATA', '.')) / APP_NAME / "logs"
-            elif sys.platform == 'darwin':
-                log_dir = Path.home() / "Library" / "Logs" / APP_NAME
-            else:
-                log_dir = Path.home() / ".config" / APP_NAME / "logs"
-            
+            log_dir = get_log_dir()
+
             if log_dir.exists():
                 # Open folder in system file manager
                 if sys.platform == 'win32':
@@ -525,14 +520,8 @@ class LogViewerDialog(QDialog):
     def _load_logs(self):
         """Load recent log entries."""
         try:
-            # Determine log directory
-            if sys.platform == 'win32':
-                log_dir = Path(os.environ.get('APPDATA', '.')) / APP_NAME / "logs"
-            elif sys.platform == 'darwin':
-                log_dir = Path.home() / "Library" / "Logs" / APP_NAME
-            else:
-                log_dir = Path.home() / ".config" / APP_NAME / "logs"
-            
+            log_dir = get_log_dir()
+
             if not log_dir.exists():
                 self.log_text.setPlainText("No logs found. Log directory does not exist yet.")
                 return
@@ -564,20 +553,17 @@ class LogViewerDialog(QDialog):
     def _scroll_to_bottom(self):
         """Scroll log view to the bottom (most recent entries)."""
         def do_scroll():
-            # Move cursor to end
-            cursor = self.log_text.textCursor()
-            cursor.movePosition(cursor.MoveOperation.End)
-            self.log_text.setTextCursor(cursor)
-            # Ensure cursor is visible
-            self.log_text.ensureCursorVisible()
-            
-            # Also set scrollbar to max
-            scrollbar = self.log_text.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
-        
-        # Multiple retries at increasing intervals to catch final layout
-        for delay in [0, 100, 300, 500]:
-            QTimer.singleShot(delay, do_scroll)
+            try:
+                cursor = self.log_text.textCursor()
+                cursor.movePosition(cursor.MoveOperation.End)
+                self.log_text.setTextCursor(cursor)
+                self.log_text.ensureCursorVisible()
+                scrollbar = self.log_text.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
+            except RuntimeError:
+                pass  # Dialog was closed before timer fired
+
+        QTimer.singleShot(100, do_scroll)
     
     def _refresh_and_scroll(self):
         """Reload logs and scroll to bottom (for refresh button)."""
@@ -587,14 +573,8 @@ class LogViewerDialog(QDialog):
     def _export_logs(self):
         """Export logs to a file."""
         try:
-            # Determine log directory
-            if sys.platform == 'win32':
-                log_dir = Path(os.environ.get('APPDATA', '.')) / APP_NAME / "logs"
-            elif sys.platform == 'darwin':
-                log_dir = Path.home() / "Library" / "Logs" / APP_NAME
-            else:
-                log_dir = Path.home() / ".config" / APP_NAME / "logs"
-            
+            log_dir = get_log_dir()
+
             if not log_dir.exists():
                 QMessageBox.warning(self, "No Logs", "No log files found to export.")
                 return

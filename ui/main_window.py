@@ -16,7 +16,8 @@ from core.constants import (DEFAULT_PAGE_SIZE,
                                     QUEUE_WAITING_COLOR, QUEUE_ACTIVE_COLOR,
                                     QUEUE_STATUS_STYLE, THEME_CHECK_INTERVAL,
                                     THUMBNAIL_DOWNLOAD_TIMEOUT, MIN_WINDOW_WIDTH,
-                                    MIN_WINDOW_HEIGHT, THUMBNAIL_EXTENSION, DownloadStatus)
+                                    MIN_WINDOW_HEIGHT, THUMBNAIL_EXTENSION, DownloadStatus,
+                                    MAX_FILENAME_ATTEMPTS, MAX_AUTO_RESUME_ATTEMPTS)
 from ui.sidebar import Sidebar
 from ui.settings import SettingsPage
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -1171,8 +1172,7 @@ class MainWindow(QMainWindow):
 
         # Start new workers if we have capacity
         while (len(self.thumb_workers) < MAX_CONCURRENT_THUMBNAILS and
-               self.thumbnail_queue and
-               len(self.thumb_workers) < MAX_CONCURRENT_THUMBNAILS):
+               self.thumbnail_queue):
 
             # Take batch of up to 10 thumbnails
             batch = self.thumbnail_queue[:10]
@@ -1479,9 +1479,8 @@ class MainWindow(QMainWindow):
         # Start with the base name
         candidate_base = base
         n = 1
-        MAX_ATTEMPTS = 1000  # Safety cap to prevent infinite loop on filesystem edge cases
 
-        while n <= MAX_ATTEMPTS:
+        while n <= MAX_FILENAME_ATTEMPTS:
             candidate_filename = f"{candidate_base}{ext}"
             # Check both active downloads and existing files on disk
             if candidate_filename not in active_in_dest and not os.path.exists(os.path.join(dest, candidate_filename)):
@@ -1496,7 +1495,7 @@ class MainWindow(QMainWindow):
         import uuid as _uuid
         fallback = f"{base}_{_uuid.uuid4().hex[:8]}"
         active_in_dest.add(f"{fallback}{ext}")
-        self.logger.warning(f"Could not find unique filename for '{base}{ext}' after {MAX_ATTEMPTS} attempts, using '{fallback}{ext}'")
+        self.logger.warning(f"Could not find unique filename for '{base}{ext}' after {MAX_FILENAME_ATTEMPTS} attempts, using '{fallback}{ext}'")
         return fallback
 
     def _release_filename(self, dest: str, filename: str):
@@ -1551,11 +1550,11 @@ class MainWindow(QMainWindow):
         if task_id in self.active_workers:
             worker = self.active_workers.pop(task_id)
 
-            # Safer cleanup for process-based worker
+            # Schedule Qt object cleanup; don't join the process here — doing so
+            # on the main thread blocks the event loop for up to 2 s per task.
+            # The process will exit on its own once it processes the cancel event.
             try:
                 if worker:
-                    # Give process time to finish gracefully
-                    worker.join(timeout=2.0)
                     worker.deleteLater()
             except Exception as e:
                 self.logger.warning(f"Error cleaning up worker {task_id}: {e}")
@@ -1707,12 +1706,12 @@ class MainWindow(QMainWindow):
         if auto_resume and err != "Cancelled":
             item = self.history_manager.get_by_id(task_id)
             auto_resume_count = item.get("auto_resume_count", 0) if item else 0
-            if auto_resume_count < 3:
+            if auto_resume_count < MAX_AUTO_RESUME_ATTEMPTS:
                 self.history_manager.update_task(task_id, {"auto_resume_count": auto_resume_count + 1})
                 # Schedule auto-resume after a delay
                 QTimer.singleShot(5000, lambda: self._auto_resume_task(task_id))
             else:
-                self.logger.warning(f"Task {task_id} failed after 3 auto-resumes. Giving up.")
+                self.logger.warning(f"Task {task_id} failed after {MAX_AUTO_RESUME_ATTEMPTS} auto-resumes. Giving up.")
 
     def _on_download_cancelled(self, task_id):
         """Handle download cancellation from worker process."""

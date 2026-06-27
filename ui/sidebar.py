@@ -173,13 +173,15 @@ class Sidebar(QFrame):
         self.version_label.setVisible(not self.is_collapsed)
 
     def _on_nav_clicked(self, page_name: str):
-        # Exclusive selection logic (except for help which opens a dialog)
-        if page_name != "help":
-            for btn in self.buttons:
-                btn.setChecked(False)
-                
-        if page_name == "home": self.btn_home.setChecked(True)
-        elif page_name == "settings": self.btn_settings.setChecked(True)
-        # Help button doesn't stay checked - it opens a dialog
-        
+        # Always clear all buttons first — Qt auto-checks the clicked button,
+        # so we must explicitly uncheck every button regardless of page type.
+        for btn in self.buttons:
+            btn.setChecked(False)
+
+        if page_name == "home":
+            self.btn_home.setChecked(True)
+        elif page_name == "settings":
+            self.btn_settings.setChecked(True)
+        # help/legal open dialogs — no button stays checked
+
         self.page_changed.emit(page_name)

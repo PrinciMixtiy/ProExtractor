@@ -173,7 +173,7 @@ class DownloadWorker(QObject):
                     break
                 
                 # Check for timeout - if no progress for 2 minutes, consider stuck
-                if time.time() - last_progress_time > 30:  # 2 minutes
+                if time.time() - last_progress_time > 120:  # 2 minutes
                     if not self._is_finished:
                         self._is_finished = True
                         logger.error(f"Task {self.task_id} timed out (no progress for 2 minutes)")

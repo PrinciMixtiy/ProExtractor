@@ -61,6 +61,12 @@ THUMBNAIL_EXTENSION: Final[str] = ".jpg"
 DATA_DIR_NAME: Final[str] = "data"
 LOGS_DIR_NAME: Final[str] = "logs"
 
+# Filename deduplication
+MAX_FILENAME_ATTEMPTS: Final[int] = 1000
+
+# Auto-resume
+MAX_AUTO_RESUME_ATTEMPTS: Final[int] = 3
+
 # Filename Pattern Tags
 FILENAME_TAGS: Final[dict] = {
     "title": "Video title",
